@@ -15,6 +15,27 @@ import yt_dlp
 logger = logging.getLogger(__name__)
 
 
+async def defer_interaction(interaction: discord.Interaction) -> bool:
+    """Acknowledge an interaction and quietly reject an expired token."""
+    try:
+        await interaction.response.defer(thinking=True)
+    except discord.NotFound as error:
+        if error.code != 10062:
+            raise
+
+        age_seconds = (
+            discord.utils.utcnow() - interaction.created_at
+        ).total_seconds()
+        logger.warning(
+            "Ignoring expired interaction %s (age %.2fs); "
+            "Discord no longer accepts its response token",
+            interaction.id,
+            age_seconds,
+        )
+        return False
+    return True
+
+
 def _javascript_runtimes() -> dict[str, dict[str, str]]:
     """Enable a supported runtime so yt-dlp can solve YouTube JS challenges."""
     runtime_commands = (
@@ -100,47 +121,83 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
 
 def resolve_spotify_track(url: str) -> str:
-    """Uses Spotify's public oEmbed API to resolve track titles."""
+    """Uses Spotify's public oEmbed API and embed page scraping fallback to resolve track titles."""
     try:
         import urllib.parse
         import requests
+        import re
+        import json
         
+        # Follow redirects for spotify.link URLs
+        if "spotify.link" in url:
+            response = requests.head(url, allow_redirects=True, timeout=5)
+            url = response.url
+
         clean_url = url.split('?')[0]
+        track_id = clean_url.split('/track/')[-1]
         encoded_url = urllib.parse.quote(clean_url, safe='')
-        oembed_url = f"https://open.spotify.com/oembed?url={encoded_url}"
         
-        headers = {
-            'User-Agent': 'Spotify-Discord-Bot/1.0'
-        }
-        
-        response = requests.get(oembed_url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            title = data.get('title')
-            artist = data.get('author_name')
-            if title and artist:
-                return f"{title} {artist}"
-            elif title:
-                return title
-        else:
-            print(f"[Spotify Resolver] API returned status code {response.status_code}")
+        # 1. Try Spotify's oEmbed API
+        try:
+            oembed_url = f"https://open.spotify.com/oembed?url={encoded_url}"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            response = requests.get(oembed_url, headers=headers, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                title = data.get('title')
+                artist = data.get('author_name')
+                if title and artist:
+                    return f"{title} {artist}"
+                elif title:
+                    return title
+            else:
+                logger.warning(
+                    "[Spotify Resolver] oEmbed API status %d for %s",
+                    response.status_code,
+                    clean_url
+                )
+        except Exception as oembed_err:
+            logger.debug("[Spotify Resolver] oEmbed API error: %s", oembed_err)
+
+        # 2. Try Embed Page Scraping Fallback
+        try:
+            embed_url = f"https://open.spotify.com/embed/track/{track_id}"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            response = requests.get(embed_url, headers=headers, timeout=5)
+            if response.status_code == 200:
+                match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', response.text)
+                if match:
+                    data = json.loads(match.group(1))
+                    entity = data.get('props', {}).get('pageProps', {}).get('state', {}).get('data', {}).get('entity', {})
+                    title = entity.get('title') or entity.get('name')
+                    artists = entity.get('artists', [])
+                    artist_names = ", ".join([a['name'] for a in artists if 'name' in a])
+                    if title and artist_names:
+                        return f"{title} {artist_names}"
+                    elif title:
+                        return title
+        except Exception as scrape_err:
+            logger.debug("[Spotify Resolver] Scraping fallback error: %s", scrape_err)
+            
     except Exception as e:
-        print(f"[Spotify Resolver] Error: {e}")
+        logger.exception("[Spotify Resolver] General error: %s", e)
     return "Spotify Song"
 
 
 async def resolve_track_info(query: str, loop) -> tuple:
     """Resolves any URL (Spotify, YouTube) or search query into a (title, youtube_url) tuple."""
-    if "open.spotify.com/track/" in query:
+    if "open.spotify.com/track/" in query or "spotify.link" in query:
         try:
-            # Strip query params
-            clean_url = query.split('?')[0]
-            resolved = await loop.run_in_executor(None, resolve_spotify_track, clean_url)
-            if resolved:
+            resolved = await loop.run_in_executor(None, resolve_spotify_track, query)
+            if resolved and resolved != "Spotify Song":
                 # Turn it into a YouTube search
                 return resolved, f"ytsearch:{resolved}"
         except Exception as e:
-            print(f"Spotify resolve error: {e}")
+            logger.exception("Spotify resolve error: %s", e)
         return "Spotify Song", query
 
     is_url = query.startswith("http://") or query.startswith("https://")
@@ -355,7 +412,8 @@ class MusicCog(commands.Cog):
     @app_commands.command(name="play", description="เล่นเพลงจากชื่อ, ลิงก์ YouTube หรือ Spotify")
     @app_commands.describe(query="ชื่อเพลง ลิงก์ YouTube หรือลิงก์ Spotify")
     async def play(self, interaction: discord.Interaction, query: str):
-        await interaction.response.defer(thinking=True)
+        if not await defer_interaction(interaction):
+            return
 
         # Check voice state
         if not interaction.user.voice:
