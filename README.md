@@ -159,11 +159,17 @@ Logged in as ...
 6. ใช้เพียง 1 replica เพื่อไม่ให้บอทหลาย process ใช้ token เดียวกันพร้อมกัน
 
 บอทเป็น worker ที่เชื่อมต่อ Discord Gateway โดยตรง จึงไม่ต้องมี HTTP health check
+Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg, Opus และ Node.js
+สำหรับระบบเพลงให้อัตโนมัติ โดยไม่ต้องใช้ Docker
+
+ลิงก์ Spotify ที่รองรับในตอนนี้เป็นเพลงเดี่ยว (`/track/...`) บอทจะอ่านชื่อเพลง
+แล้วค้นหา audio ที่ตรงกันบน YouTube ก่อนนำมาเล่น จึงไม่ต้องใช้ Spotify API key
 
 ## โครงสร้างโปรเจกต์
 
 ```text
 .
+├── railpack.json            # Runtime packages สำหรับ Railway
 ├── main.py                  # Entry point สำหรับ local และ Railway
 ├── requirements.txt         # Python dependencies
 ├── .env.example             # ตัวอย่างตัวแปรแวดล้อม

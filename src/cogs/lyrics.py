@@ -21,7 +21,7 @@ class LyricsCog(commands.Cog):
             try:
                 state = get_state(self.bot, interaction.guild.id)
                 if state and state.current:
-                    query = state.current
+                    query = state.current.title
                 else:
                     embed = discord.Embed(
                         title="🎵 ตอนนี้ยังไม่มีเพลงเล่นอยู่",
