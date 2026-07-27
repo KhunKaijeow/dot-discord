@@ -47,8 +47,8 @@ class StockCog(commands.Cog):
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
             if not info or current_price is None:
                 embed = discord.Embed(
-                    title="❌ ไม่พบข้อมูลหุ้น",
-                    description=f"ไม่พบข้อมูลของหุ้นสัญลักษณ์ **{symbol}** กรุณาตรวจสอบความถูกต้องของสัญลักษณ์หุ้นอีกครั้งครับ\n"
+                    title="🔎 ยังไม่เจอหุ้นตัวนี้",
+                    description=f"ผมหาข้อมูลหุ้น **{symbol}** ไม่เจอ ลองเช็กชื่อย่ออีกครั้งนะครับ\n"
                                 f"*ตัวอย่าง: AAPL (หุ้นนอก), PTT.BK (หุ้นไทยต้องลงท้ายด้วย .BK)*",
                     color=0xe74c3c
                 )
@@ -89,7 +89,7 @@ class StockCog(commands.Cog):
                 color=color
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_author(name=f"ข้อมูลดัชนีหุ้น • {symbol} ({company_name})", icon_url=avatar_url)
+            embed.set_author(name=f"เช็กราคาหุ้นให้แล้ว • {symbol} ({company_name})", icon_url=avatar_url)
             
             # Format price showing sign changes
             price_display = f"`{currency_symbol}{current_price:,.2f}`"
@@ -103,14 +103,14 @@ class StockCog(commands.Cog):
 
             embed.add_field(name="💼 มูลค่าตลาดทั้งหมด (Market Cap)", value=f"`{format_large_number(market_cap)}`", inline=False)
             
-            embed.set_footer(text="Data retrieved from Yahoo Finance", icon_url=avatar_url)
+            embed.set_footer(text="ข้อมูลล่าสุดจาก Yahoo Finance", icon_url=avatar_url)
 
             await interaction.followup.send(embed=embed)
 
         except Exception as e:
             embed = discord.Embed(
-                title="❌ เกิดข้อผิดพลาด",
-                description=f"ไม่สามารถตรวจสอบข้อมูลหุ้นได้ในขณะนี้: {e}",
+                title="😅 เช็กราคาหุ้นให้ไม่ได้ในตอนนี้",
+                description="ขอโทษนะ ตอนนี้ผมติดต่อแหล่งข้อมูลหุ้นไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่ครับ",
                 color=0xe74c3c
             )
             await interaction.followup.send(embed=embed)
@@ -148,11 +148,11 @@ class StockCog(commands.Cog):
     @app_commands.command(name="stock-popular", description="แสดงรายชื่อหุ้นยอดฮิตแนะนำสำหรับการค้นหา")
     async def stock_popular(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            description="💡 **คุณสามารถนำชื่อย่อหุ้นเหล่านี้ไปค้นหาข้อมูลด้วยคำสั่ง `/stock [สัญลักษณ์]` ได้ทันทีครับ**",
+            description="💡 **สนใจตัวไหน พิมพ์ `/stock [สัญลักษณ์]` แล้วผมจะเช็กราคาให้ทันทีครับ**",
             color=0x3498db  # Material Blue
         )
         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-        embed.set_author(name="รายชื่อหุ้นยอดฮิตแนะนำ • Popular Tickers", icon_url=avatar_url)
+        embed.set_author(name="หุ้นยอดนิยมที่น่ารู้จัก • Popular Tickers", icon_url=avatar_url)
         
         us_giants = (
             "• `AAPL` - Apple Inc.\n"
@@ -187,7 +187,7 @@ class StockCog(commands.Cog):
         embed.add_field(name="📈 กองทุนดัชนีสหรัฐฯ (Index ETFs)", value=etfs, inline=False)
         embed.add_field(name="🇹🇭 หุ้นยักษ์ใหญ่ไทย (SET Giants)", value=thai_giants, inline=False)
         
-        embed.set_footer(text="ค้นหาข้อมูลหุ้นอื่นๆ เพิ่มเติมได้โดยการระบุชื่อย่อหุ้นตามตลาดจริง", icon_url=avatar_url)
+        embed.set_footer(text="อยากดูหุ้นตัวอื่นก็พิมพ์ชื่อย่อมาได้เลยนะ", icon_url=avatar_url)
         
         await interaction.response.send_message(embed=embed)
 

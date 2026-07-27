@@ -56,21 +56,22 @@ async def ask(interaction: discord.Interaction, prompt: str):
         response = await asyncio.to_thread(chat.send_message, prompt)
         answer = response.text
     except Exception as e:
-        answer = f"เกิดข้อผิดพลาดในการเรียกใช้งาน Gemini AI: {e}"
+        print(f"Gemini request failed: {e}")
+        answer = "ขอโทษนะ ตอนนี้ผมคุยกับ Gemini ไม่สำเร็จ ลองถามใหม่อีกครั้งในอีกสักครู่นะครับ 🙏"
 
     embed = discord.Embed(
         color=0x1a73e8  # Premium Google Blue
     )
     avatar_url = bot.user.display_avatar.url if bot.user else None
-    embed.set_author(name="Javis AI • ถามตอบอัจฉริยะ", icon_url=avatar_url)
+    embed.set_author(name="Javis AI • มาคุยกันเถอะ", icon_url=avatar_url)
     embed.add_field(name="💬 คำถามของคุณ", value=f">>> {prompt}", inline=False)
     
     # Truncate answer if too long
     if len(answer) > 2000:
         answer = answer[:1980] + "\n...(คำตอบยาวเกินไป ถูกจำกัดการแสดงผล)..."
     
-    embed.add_field(name="🤖 คำตอบจากระบบ", value=answer, inline=False)
-    embed.set_footer(text="Powered by Gemini 3.5 Flash", icon_url=avatar_url)
+    embed.add_field(name="🤖 คำตอบของผม", value=answer, inline=False)
+    embed.set_footer(text="ตอบโดย Javis AI • Gemini 3.5 Flash", icon_url=avatar_url)
     
     await interaction.followup.send(embed=embed)
 
@@ -78,9 +79,9 @@ async def ask(interaction: discord.Interaction, prompt: str):
 async def reset_chat(interaction: discord.Interaction):
     bot.gemini_service.reset_chat(interaction.channel_id)
     embed = discord.Embed(
-        description="🧹 **ล้างประวัติการสนทนาในช่องแชทนี้สำเร็จเรียบร้อย!** เริ่มแชทใหม่ได้ทันทีครับ",
+        description="🧹 **ล้างประวัติแชทให้แล้วนะ!** เริ่มคุยเรื่องใหม่กันได้เลยครับ",
         color=0x2ecc71  # Mint Green
     )
     avatar_url = bot.user.display_avatar.url if bot.user else None
-    embed.set_footer(text="Javis AI Chat History Reset", icon_url=avatar_url)
+    embed.set_footer(text="พร้อมเริ่มบทสนทนาใหม่เสมอ ✨", icon_url=avatar_url)
     await interaction.response.send_message(embed=embed)

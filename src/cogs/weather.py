@@ -136,33 +136,33 @@ class WeatherCog(commands.Cog):
                             description=f"📍 **สถานที่:** `{location_display}`\n☁️ **ลักษณะสภาพอากาศ:** {weather_emoji} **{weather_desc.strip()}**",
                             color=embed_color
                         )
-                        embed.set_author(name="รายงานสภาพอากาศ • Weather Forecast", icon_url=avatar_url)
+                        embed.set_author(name="เช็กอากาศให้แล้ว • Weather", icon_url=avatar_url)
                         
                         embed.add_field(name="🌡️ อุณหภูมิปัจจุบัน", value=f"`{temp_c}°C`\n*(รู้สึกเหมือน `{feels_like_c}°C`)*", inline=True)
                         embed.add_field(name="💧 ความชื้นอากาศ", value=f"`{humidity}%`", inline=True)
                         embed.add_field(name="💨 ความเร็วลม", value=f"`{wind_speed} km/h`\n*(ทิศทาง `{wind_dir}`)*", inline=True)
 
-                        embed.add_field(name="📈 ขอบเขตวันนี้", value=f"สูงสุด `{max_temp}°C`\nต่ำสุด `{min_temp}°C`", inline=True)
-                        embed.add_field(name="☀️ ดัชนีความร้อน UV", value=f"ระดับ `{uv_index}`", inline=True)
-                        embed.add_field(name="🌅 คาบพระอาทิตย์", value=f"ขึ้น `{sunrise}`\nตก `{sunset}`", inline=True)
+                        embed.add_field(name="📈 อุณหภูมิวันนี้", value=f"สูงสุด `{max_temp}°C`\nต่ำสุด `{min_temp}°C`", inline=True)
+                        embed.add_field(name="☀️ ดัชนี UV", value=f"ระดับ `{uv_index}`", inline=True)
+                        embed.add_field(name="🌅 พระอาทิตย์", value=f"ขึ้น `{sunrise}`\nตก `{sunset}`", inline=True)
 
-                        embed.set_footer(text="Data retrieved from wttr.in", icon_url=avatar_url)
+                        embed.set_footer(text="ข้อมูลอากาศจาก wttr.in", icon_url=avatar_url)
 
                         await interaction.followup.send(embed=embed)
                     else:
                         embed = discord.Embed(
-                            title="❌ ดึงข้อมูลสภาพอากาศล้มเหลว",
-                            description=f"เกิดข้อผิดพลาดในการดึงข้อมูลจากเครื่องบริการ (HTTP Code: {response.status})",
+                            title="😅 เช็กอากาศให้ไม่ได้ในตอนนี้",
+                            description=f"บริการพยากรณ์อากาศตอบกลับไม่สำเร็จ (รหัส {response.status}) ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Weather Service", icon_url=avatar_url)
+                        embed.set_footer(text="Javis Weather • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
 
         except Exception as e:
             embed = discord.Embed(
-                title="❌ เกิดข้อผิดพลาด",
-                description=f"ไม่สามารถเรียกดูข้อมูลสภาพอากาศได้ในขณะนี้: {e}",
+                title="😅 เช็กอากาศให้ไม่ได้ในตอนนี้",
+                description="ขอโทษนะ ตอนนี้ผมติดต่อบริการพยากรณ์อากาศไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่ครับ",
                 color=0xe74c3c
             )
             await interaction.followup.send(embed=embed)

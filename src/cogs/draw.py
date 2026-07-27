@@ -24,11 +24,11 @@ class DrawControlView(discord.ui.View):
         # Re-build embed
         embed = discord.Embed(
             title=f"🎨 ภาพ AI: {self.prompt}",
-            description=f"**ผู้ขอสร้าง:** {interaction.user.mention}\n*(ภาพแบบสุ่ม Seed: `{new_seed}`)*",
+            description=f"**วาดให้:** {interaction.user.mention}\n*ลองสร้างเวอร์ชันใหม่ให้แล้ว (Seed: `{new_seed}`)*",
             color=discord.Color.random()
         )
         embed.set_image(url=new_image_url)
-        embed.set_footer(text="Powered by Pollinations.ai")
+        embed.set_footer(text="วาดด้วย AI จาก Pollinations.ai")
 
         # Edit original message with new image
         await interaction.followup.edit_message(message_id=interaction.message.id, embed=embed, view=self)
@@ -49,11 +49,11 @@ class DrawCog(commands.Cog):
 
         embed = discord.Embed(
             title=f"🎨 ภาพ AI: {prompt}",
-            description=f"**ผู้ขอสร้าง:** {interaction.user.mention}\n*(กำลังประมวลผลภาพ...)*",
+            description=f"**วาดให้:** {interaction.user.mention}\n*กำลังเนรมิตภาพให้อยู่นะ 🎨*",
             color=discord.Color.random()
         )
         embed.set_image(url=image_url)
-        embed.set_footer(text="Powered by Pollinations.ai")
+        embed.set_footer(text="วาดด้วย AI จาก Pollinations.ai")
 
         view = DrawControlView(prompt)
         await interaction.response.send_message(embed=embed, view=view)

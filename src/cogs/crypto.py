@@ -78,7 +78,7 @@ class CryptoCog(commands.Cog):
                             color=color
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_author(name=f"ดัชนีราคาคริปโต • {symbol}/USDT", icon_url=avatar_url)
+                        embed.set_author(name=f"เช็กราคาคริปโตให้แล้ว • {symbol}/USDT", icon_url=avatar_url)
                         
                         embed.add_field(name="💵 ราคาปัจจุบัน", value=f"`{format_price(last_price)}`", inline=True)
                         embed.add_field(name=f"{change_emoji} การเปลี่ยนแปลง 24 ชม.", value=f"`{change_str}`", inline=True)
@@ -88,37 +88,37 @@ class CryptoCog(commands.Cog):
                         embed.add_field(name="📉 ราคาต่ำสุด 24 ชม.", value=f"`{format_price(low_price)}`", inline=True)
                         embed.add_field(name="🔄 อัปเดตราคาแบบ", value="`เรียลไทม์`", inline=True)
                         
-                        embed.set_footer(text="Data retrieved from Binance API", icon_url=avatar_url)
+                        embed.set_footer(text="ข้อมูลล่าสุดจาก Binance", icon_url=avatar_url)
 
                         await interaction.followup.send(embed=embed)
                     elif response.status == 400:
                         embed = discord.Embed(
-                            title="❌ ไม่พบข้อมูลเหรียญคริปโต",
-                            description=f"ไม่พบเหรียญสัญลักษณ์ **{symbol}** หรือไม่มีคู่เทรด USDT บน Binance ครับ\n"
-                                        f"*คำแนะนำ: ตรวจสอบตัวย่อเหรียญ เช่น BTC, ETH, SOL, DOGE*",
+                            title="🔎 ยังไม่เจอเหรียญนี้",
+                            description=f"ผมหาเหรียญ **{symbol}** หรือคู่เทรด USDT บน Binance ไม่เจอครับ\n"
+                                        f"*ลองเช็กตัวย่ออีกครั้ง เช่น BTC, ETH, SOL หรือ DOGE*",
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Crypto Service", icon_url=avatar_url)
+                        embed.set_footer(text="Javis Crypto • ลองค้นหาเหรียญอื่นได้นะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
                     else:
                         embed = discord.Embed(
-                            title="❌ ดึงข้อมูลล้มเหลว",
-                            description=f"เกิดข้อผิดพลาดในการดึงข้อมูลจาก Binance API (HTTP Code: {response.status})",
+                            title="😅 เช็กราคาให้ไม่ได้ในตอนนี้",
+                            description=f"Binance ตอบกลับไม่สำเร็จ (รหัส {response.status}) ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Crypto Service", icon_url=avatar_url)
+                        embed.set_footer(text="Javis Crypto • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
 
         except Exception as e:
             embed = discord.Embed(
-                title="❌ เกิดข้อผิดพลาด",
-                description=f"ไม่สามารถตรวจสอบราคาเหรียญคริปโตได้ในขณะนี้: {e}",
+                title="😅 เช็กราคาให้ไม่ได้ในตอนนี้",
+                description="ขอโทษนะ ตอนนี้ผมติดต่อแหล่งข้อมูลราคาไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่ครับ",
                 color=0xe74c3c
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Crypto Service", icon_url=avatar_url)
+            embed.set_footer(text="Javis Crypto • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
     @crypto.autocomplete('symbol')

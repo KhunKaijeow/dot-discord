@@ -24,16 +24,16 @@ class LyricsCog(commands.Cog):
                     query = state.current
                 else:
                     embed = discord.Embed(
-                        title="❌ ไม่พบเพลงที่กำลังเล่น",
-                        description="ไม่มีเพลงกำลังเล่นในช่องแชทขณะนี้ กรุณากรอกชื่อเพลงที่ต้องการค้นหา เช่น `/lyrics query:Shape of You`",
+                        title="🎵 ตอนนี้ยังไม่มีเพลงเล่นอยู่",
+                        description="พิมพ์ชื่อเพลงที่อยากหาเนื้อร้องมาได้เลย เช่น `/lyrics query:Shape of You`",
                         color=0xe74c3c
                     )
                     await interaction.followup.send(embed=embed)
                     return
             except Exception:
                 embed = discord.Embed(
-                    title="❌ ไม่ระบุชื่อเพลง",
-                    description="กรุณากรอกชื่อเพลงที่ต้องการค้นหาด้วยครับ เช่น `/lyrics query:hello`",
+                    title="🎵 บอกชื่อเพลงผมหน่อย",
+                    description="ลองใส่ชื่อเพลงที่อยากหาเนื้อร้อง เช่น `/lyrics query:hello` นะครับ",
                     color=0xe74c3c
                 )
                 await interaction.followup.send(embed=embed)
@@ -54,8 +54,8 @@ class LyricsCog(commands.Cog):
                         
                         if not results:
                             embed = discord.Embed(
-                                title="❌ ไม่พบเนื้อเพลง",
-                                description=f"ไม่พบเนื้อเพลงสำหรับคำค้นหา **{query_clean}** ในระบบครับ",
+                                title="🔎 ยังไม่เจอเนื้อเพลงนี้",
+                                description=f"ผมหาเนื้อเพลง **{query_clean}** ไม่เจอ ลองใส่ชื่อศิลปินเพิ่มหรือเช็กชื่อเพลงอีกครั้งนะครับ",
                                 color=0xe74c3c
                             )
                             await interaction.followup.send(embed=embed)
@@ -70,8 +70,8 @@ class LyricsCog(commands.Cog):
                         
                         if not best_match:
                             embed = discord.Embed(
-                                title="❌ ไม่พบเนื้อเพลง",
-                                description=f"ไม่พบเนื้อเพลงแบบธรรมดาสำหรับ **{query_clean}** ในระบบ (เพลงนี้อาจไม่มีเนื้อร้อง) ครับ",
+                                title="🎼 เพลงนี้อาจไม่มีเนื้อร้อง",
+                                description=f"ผมหาเนื้อร้องของ **{query_clean}** ไม่เจอ เพลงนี้อาจเป็นเพลงบรรเลงหรือตอนนี้ยังไม่มีข้อมูลครับ",
                                 color=0xe74c3c
                             )
                             await interaction.followup.send(embed=embed)
@@ -93,27 +93,27 @@ class LyricsCog(commands.Cog):
                             color=0x9b59b6  # Purple theme for music
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_author(name=f"เนื้อร้องเพลง • {title}", icon_url=avatar_url)
-                        embed.set_footer(text="Lyrics retrieved from LRCLIB API", icon_url=avatar_url)
+                        embed.set_author(name=f"เจอเนื้อเพลงแล้ว • {title}", icon_url=avatar_url)
+                        embed.set_footer(text="เนื้อเพลงจาก LRCLIB", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
                     else:
                         embed = discord.Embed(
-                            title="❌ ดึงข้อมูลล้มเหลว",
-                            description=f"เกิดข้อผิดพลาดในการดึงข้อมูลจาก LRCLIB (HTTP Code: {response.status})",
+                            title="😅 โหลดเนื้อเพลงไม่สำเร็จ",
+                            description=f"แหล่งข้อมูลตอบกลับไม่สำเร็จ (รหัส {response.status}) ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Lyrics Service", icon_url=avatar_url)
+                        embed.set_footer(text="Javis Lyrics • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
 
         except Exception as e:
             embed = discord.Embed(
-                title="❌ เกิดข้อผิดพลาด",
-                description=f"เกิดข้อผิดพลาดในการดึงข้อมูลเนื้อเพลง: {e}",
+                title="😅 โหลดเนื้อเพลงไม่สำเร็จ",
+                description="ตอนนี้ผมติดต่อแหล่งข้อมูลเนื้อเพลงไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
                 color=0xe74c3c
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Lyrics Service", icon_url=avatar_url)
+            embed.set_footer(text="Javis Lyrics • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
 async def setup(bot):

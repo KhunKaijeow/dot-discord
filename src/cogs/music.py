@@ -141,40 +141,40 @@ class MusicControlView(discord.ui.View):
     async def pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_playing():
-            await interaction.response.send_message("❌ ไม่มีเพลงที่กำลังเล่นอยู่ครับ", ephemeral=True)
+            await interaction.response.send_message("🎵 ตอนนี้ยังไม่มีเพลงให้พักนะครับ", ephemeral=True)
             return
 
         voice_client.pause()
-        embed = discord.Embed(description="⏸️ **หยุดเพลงชั่วคราวแล้วครับ**", color=0xe67e22)
+        embed = discord.Embed(description="⏸️ **พักเพลงให้แล้วนะครับ**", color=0xe67e22)
         await interaction.response.send_message(embed=embed)
 
     @discord.ui.button(label="Resume", style=discord.ButtonStyle.green, emoji="▶️", custom_id="music_resume")
     async def resume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_paused():
-            await interaction.response.send_message("❌ เพลงไม่ได้หยุดชั่วคราวอยู่ครับ", ephemeral=True)
+            await interaction.response.send_message("▶️ เพลงไม่ได้พักอยู่นะ ตอนนี้กำลังเล่นตามปกติครับ", ephemeral=True)
             return
 
         voice_client.resume()
-        embed = discord.Embed(description="▶️ **เล่นเพลงต่อเรียบร้อยครับ**", color=0x2ecc71)
+        embed = discord.Embed(description="▶️ **เปิดเพลงต่อให้แล้วนะ ฟังกันต่อเลย!**", color=0x2ecc71)
         await interaction.response.send_message(embed=embed)
 
     @discord.ui.button(label="Skip", style=discord.ButtonStyle.secondary, emoji="⏭️", custom_id="music_skip")
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         voice_client = interaction.guild.voice_client
         if not voice_client or (not voice_client.is_playing() and not voice_client.is_paused()):
-            await interaction.response.send_message("❌ ไม่มีเพลงที่กำลังเล่นอยู่ครับ", ephemeral=True)
+            await interaction.response.send_message("🎵 ตอนนี้ยังไม่มีเพลงให้ข้ามนะครับ", ephemeral=True)
             return
 
         voice_client.stop()
-        embed = discord.Embed(description="⏭️ **ข้ามเพลงเรียบร้อยครับ**", color=0xf1c40f)
+        embed = discord.Embed(description="⏭️ **ข้ามให้แล้ว ไปเพลงถัดไปกันเลย!**", color=0xf1c40f)
         await interaction.response.send_message(embed=embed)
 
     @discord.ui.button(label="Stop", style=discord.ButtonStyle.danger, emoji="⏹️", custom_id="music_stop")
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         voice_client = interaction.guild.voice_client
         if not voice_client:
-            await interaction.response.send_message("❌ บอทไม่ได้อยู่ในช่องพูดคุยครับ", ephemeral=True)
+            await interaction.response.send_message("🎧 ตอนนี้ผมยังไม่ได้อยู่ในห้องเสียงนะครับ", ephemeral=True)
             return
 
         state = get_state(self.bot, self.guild_id)
@@ -182,7 +182,7 @@ class MusicControlView(discord.ui.View):
         state.current = None
 
         await voice_client.disconnect()
-        embed = discord.Embed(description="⏹️ **ล้างคิวเพลงและออกจากห้องพูดคุยเรียบร้อยครับ**", color=0xe74c3c)
+        embed = discord.Embed(description="👋 **หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะครับ**", color=0xe74c3c)
         await interaction.response.send_message(embed=embed)
 
 
@@ -197,7 +197,7 @@ class GuildPlayState:
     async def play_next_async(self, interaction):
         if not self.queue:
             self.current = None
-            embed = discord.Embed(description="⏹️ **คิวเพลงหมดแล้วครับ**", color=0xe74c3c)
+            embed = discord.Embed(description="📭 **เพลงในคิวหมดแล้วนะ เพิ่มเพลงใหม่มาได้เลย!**", color=0xe74c3c)
             await interaction.channel.send(embed=embed)
             return
         
@@ -207,7 +207,7 @@ class GuildPlayState:
         user = song['user']
         self.current = title
 
-        loading_msg = await interaction.channel.send(f"🔄 **กำลังโหลดเพลง:** {title}")
+        loading_msg = await interaction.channel.send(f"🔄 **รอสักครู่นะ กำลังเตรียมเพลง:** {title}")
         
         try:
             source = await YTDLSource.from_url(query, loop=self.bot.loop, stream=True)
@@ -226,14 +226,14 @@ class GuildPlayState:
                 color=0x9b59b6  # Vibrant Purple
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_author(name="กำลังเล่นเพลง • Now Playing", icon_url=avatar_url)
+            embed.set_author(name="เปิดให้แล้ว • Now Playing", icon_url=avatar_url)
             if source.thumbnail:
                 embed.set_thumbnail(url=source.thumbnail)
             
             embed.add_field(name="⏱️ ความยาว", value=f"`{duration_str}`", inline=True)
             embed.add_field(name="👤 ผู้ขอเพลง", value=user.mention, inline=True)
             
-            embed.set_footer(text="Javis Music System", icon_url=avatar_url)
+            embed.set_footer(text="Javis Music • ขอให้ฟังเพลงอย่างมีความสุข 🎧", icon_url=avatar_url)
 
             def after_playing(error):
                 if error:
@@ -244,7 +244,7 @@ class GuildPlayState:
             view = MusicControlView(self.bot, self.guild_id)
             await loading_msg.edit(content=None, embed=embed, view=view)
         except Exception as e:
-            await loading_msg.edit(content=f"❌ เกิดข้อผิดพลาดในการเล่นเพลง **{title}**: {e}")
+            await loading_msg.edit(content=f"😅 เล่นเพลง **{title}** ไม่สำเร็จ ลองเลือกเพลงอื่นหรือสั่งใหม่อีกครั้งนะครับ")
             await self.play_next_async(interaction)
 
 
@@ -269,7 +269,7 @@ class MusicCog(commands.Cog):
 
         # Check voice state
         if not interaction.user.voice:
-            await interaction.followup.send("❌ คุณต้องเชื่อมต่อกับช่องพูดคุย (Voice Channel) ก่อนครับ")
+            await interaction.followup.send("🎧 เข้าห้องเสียงก่อนนะครับ แล้วเรียกผมไปเปิดเพลงให้ได้เลย!")
             return
 
         channel = interaction.user.voice.channel
@@ -296,67 +296,67 @@ class MusicCog(commands.Cog):
         if not voice_client.is_playing() and not voice_client.is_paused():
             # If not currently playing, start playing
             embed = discord.Embed(
-                description=f"✅ **เพิ่มเข้าคิวและเริ่มเล่นสำเร็จ**\n\n🎵 **{title}**",
+                description=f"🎉 **เพิ่มให้แล้ว เพลงกำลังเริ่มเล่นนะ!**\n\n🎵 **{title}**",
                 color=0x2ecc71  # Mint Green
             )
             embed.add_field(name="👤 ผู้ขอเพลง", value=interaction.user.mention, inline=True)
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Music System", icon_url=avatar_url)
+            embed.set_footer(text="Javis Music • ขอให้ฟังเพลงอย่างมีความสุข 🎧", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
             await state.play_next_async(interaction)
         else:
             # If already playing, just notify queue addition
             embed = discord.Embed(
-                description=f"📥 **เพิ่มเข้าคิวเพลงเรียบร้อยแล้ว**\n\n🎵 **{title}**",
+                description=f"📥 **เพิ่มเพลงนี้เข้าคิวให้แล้วนะ**\n\n🎵 **{title}**",
                 color=0x3498db  # Material Blue
             )
             embed.add_field(name="👤 ผู้ขอเพลง", value=interaction.user.mention, inline=True)
             embed.add_field(name="📋 ลำดับในคิว", value=f"`#{len(state.queue)}`", inline=True)
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Music System", icon_url=avatar_url)
+            embed.set_footer(text="Javis Music • ใกล้ถึงคิวแล้ว รอฟังได้เลย", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="skip", description="ข้ามเพลงที่กำลังเล่นอยู่")
     async def skip(self, interaction: discord.Interaction):
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_playing():
-            embed = discord.Embed(description="❌ **ไม่มีเพลงที่กำลังเล่นอยู่ครับ**", color=0xe74c3c)
+            embed = discord.Embed(description="🎵 **ตอนนี้ยังไม่มีเพลงให้ข้ามนะครับ**", color=0xe74c3c)
             await interaction.response.send_message(embed=embed)
             return
 
         voice_client.stop()
-        embed = discord.Embed(description="⏭️ **ข้ามเพลงเรียบร้อยครับ**", color=0xf1c40f)
+        embed = discord.Embed(description="⏭️ **ข้ามให้แล้ว ไปเพลงถัดไปกันเลย!**", color=0xf1c40f)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="pause", description="หยุดเพลงชั่วคราว")
     async def pause(self, interaction: discord.Interaction):
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_playing():
-            embed = discord.Embed(description="❌ **ไม่มีเพลงที่กำลังเล่นอยู่ครับ**", color=0xe74c3c)
+            embed = discord.Embed(description="🎵 **ตอนนี้ยังไม่มีเพลงให้พักนะครับ**", color=0xe74c3c)
             await interaction.response.send_message(embed=embed)
             return
 
         voice_client.pause()
-        embed = discord.Embed(description="⏸️ **หยุดเพลงชั่วคราวแล้วครับ**", color=0xe67e22)
+        embed = discord.Embed(description="⏸️ **พักเพลงให้แล้วนะครับ**", color=0xe67e22)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="resume", description="เล่นเพลงที่หยุดชั่วคราวต่อ")
     async def resume(self, interaction: discord.Interaction):
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_paused():
-            embed = discord.Embed(description="❌ **เพลงไม่ได้หยุดชั่วคราวอยู่ครับ**", color=0xe74c3c)
+            embed = discord.Embed(description="▶️ **เพลงไม่ได้พักอยู่นะ ตอนนี้กำลังเล่นตามปกติครับ**", color=0xe74c3c)
             await interaction.response.send_message(embed=embed)
             return
 
         voice_client.resume()
-        embed = discord.Embed(description="▶️ **เล่นเพลงต่อเรียบร้อยครับ**", color=0x2ecc71)
+        embed = discord.Embed(description="▶️ **เปิดเพลงต่อให้แล้วนะ ฟังกันต่อเลย!**", color=0x2ecc71)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="queue", description="แสดงรายการคิวเพลงปัจจุบัน")
     async def queue(self, interaction: discord.Interaction):
         state = get_state(self.bot, interaction.guild.id)
         if not state.current and not state.queue:
-            embed = discord.Embed(description="📭 **ไม่มีเพลงในคิวปัจจุบันครับ**", color=0x95a5a6)
+            embed = discord.Embed(description="📭 **คิวยังว่างอยู่ ขอเพลงแรกมาได้เลยครับ!**", color=0x95a5a6)
             await interaction.response.send_message(embed=embed)
             return
 
@@ -364,7 +364,7 @@ class MusicCog(commands.Cog):
             color=0x3498db  # Material Blue
         )
         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-        embed.set_author(name="รายการคิวเพลง • Queue List", icon_url=avatar_url)
+        embed.set_author(name="มาดูคิวเพลงกัน • Queue", icon_url=avatar_url)
         embed.add_field(name="🎶 เพลงที่กำลังเล่น", value=f"📡 **{state.current}**" if state.current else "ไม่มี", inline=False)
         
         if not state.queue:
@@ -377,14 +377,14 @@ class MusicCog(commands.Cog):
                 queue_list += f"\n*และยังมีอีก {len(state.queue) - 10} เพลงในคิวคอยอยู่...*"
 
         embed.add_field(name="📋 คิวเพลงถัดไป (10 อันดับแรก)", value=queue_list, inline=False)
-        embed.set_footer(text="Javis Music System", icon_url=avatar_url)
+        embed.set_footer(text="อยากฟังเพลงไหนเพิ่ม ส่งเข้าคิวมาได้เลย 🎶", icon_url=avatar_url)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="stop", description="หยุดเพลง ล้างคิว และออกจากห้องพูดคุย")
     async def stop(self, interaction: discord.Interaction):
         voice_client = interaction.guild.voice_client
         if not voice_client:
-            embed = discord.Embed(description="❌ **บอทไม่ได้อยู่ในช่องพูดคุยครับ**", color=0xe74c3c)
+            embed = discord.Embed(description="🎧 **ตอนนี้ผมยังไม่ได้อยู่ในห้องเสียงนะครับ**", color=0xe74c3c)
             await interaction.response.send_message(embed=embed)
             return
 
@@ -394,7 +394,7 @@ class MusicCog(commands.Cog):
         state.current = None
 
         await voice_client.disconnect()
-        embed = discord.Embed(description="⏹️ **ล้างคิวเพลงและออกจากห้องพูดคุยเรียบร้อยครับ**", color=0xe74c3c)
+        embed = discord.Embed(description="👋 **หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะครับ**", color=0xe74c3c)
         await interaction.response.send_message(embed=embed)
 
 

@@ -41,8 +41,8 @@ class NewsCog(commands.Cog):
                     
                     if not items:
                         embed = discord.Embed(
-                            title="❌ ไม่พบข่าวล่าสุด",
-                            description="ไม่พบหัวข้อข่าวเด่นในระบบสำหรับหัวข้อนี้ในขณะนี้ครับ",
+                            title="🔎 ยังไม่เจอข่าวที่ตรงกัน",
+                            description="ตอนนี้ยังไม่เจอข่าวเด่นในหัวข้อนี้ ลองเปลี่ยนคำค้นอีกนิดแล้วให้ผมหาใหม่นะครับ",
                             color=0xe74c3c
                         )
                         await interaction.followup.send(embed=embed)
@@ -80,23 +80,23 @@ class NewsCog(commands.Cog):
 
                     # Build beautiful embed
                     embed = discord.Embed(
-                        description=f"📰 **สืบค้นข้อมูล:** `{keyword_clean if (keyword and keyword.strip() != '') else 'ข่าวเด่นทั่วไปประจําวัน'}`\n\n{summary}",
+                            description=f"📰 **ข่าวที่คุณอยากรู้:** `{keyword_clean if (keyword and keyword.strip() != '') else 'ข่าวเด่นทั่วไปประจําวัน'}`\n\n{summary}",
                         color=0x1f73b7  # Google News Blue
                     )
                     avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                    embed.set_author(name="รายงานสรุปข่าวเด่น • Daily News AI", icon_url=avatar_url)
-                    embed.set_footer(text="News summarized by Javis AI using Gemini", icon_url=avatar_url)
+                    embed.set_author(name="สรุปข่าวมาให้แล้ว • Daily News", icon_url=avatar_url)
+                    embed.set_footer(text="สรุปให้อ่านง่ายโดย Javis AI • Gemini", icon_url=avatar_url)
 
                     await interaction.followup.send(embed=embed)
 
         except Exception as e:
             embed = discord.Embed(
-                title="❌ เกิดข้อผิดพลาด",
-                description=f"เกิดข้อผิดพลาดในการดึงหรือสรุปข่าว: {e}",
+                title="😅 ขออภัย สรุปข่าวไม่สำเร็จ",
+                description="ตอนนี้ผมดึงหรือสรุปข่าวให้ไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
                 color=0xe74c3c
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis News Service", icon_url=avatar_url)
+            embed.set_footer(text="Javis News • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
 async def setup(bot):

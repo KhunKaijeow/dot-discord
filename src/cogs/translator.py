@@ -54,32 +54,32 @@ class TranslatorCog(commands.Cog):
                             color=0x1abc9c  # Teal color
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_author(name="แปลภาษาอัจฉริยะ • AI Translation", icon_url=avatar_url)
+                        embed.set_author(name="แปลให้แล้ว • Translation", icon_url=avatar_url)
                         
                         embed.add_field(name="📥 ข้อความต้นฉบับ", value=f"```\n{text}\n```", inline=False)
                         embed.add_field(name="📤 ผลลัพธ์การแปล", value=f"```\n{translated_text}\n```", inline=False)
                         
-                        embed.set_footer(text="Translated via Google Translate (Keyless)", icon_url=avatar_url)
+                        embed.set_footer(text="แปลผ่าน Google Translate", icon_url=avatar_url)
 
                         await interaction.followup.send(embed=embed)
                     else:
                         embed = discord.Embed(
-                            title="❌ แปลภาษาล้มเหลว",
-                            description=f"เกิดข้อผิดพลาดในการดึงข้อมูลแปลจากระบบ (HTTP Code: {response.status})",
+                            title="😅 แปลให้ไม่ได้ในตอนนี้",
+                            description=f"บริการแปลภาษาตอบกลับไม่สำเร็จ (รหัส {response.status}) ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Translation Service", icon_url=avatar_url)
+                        embed.set_footer(text="Javis Translate • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
 
         except Exception as e:
             embed = discord.Embed(
-                title="❌ เกิดข้อผิดพลาด",
-                description=f"ไม่สามารถทำการแปลภาษาได้ในขณะนี้: {e}",
+                title="😅 แปลให้ไม่ได้ในตอนนี้",
+                description="ขอโทษนะ ตอนนี้ผมติดต่อบริการแปลภาษาไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่ครับ",
                 color=0xe74c3c
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Translation Service", icon_url=avatar_url)
+            embed.set_footer(text="Javis Translate • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
 async def setup(bot):

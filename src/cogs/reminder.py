@@ -24,8 +24,8 @@ class ReminderCog(commands.Cog):
         
         if not match:
             embed = discord.Embed(
-                title="❌ รูปแบบเวลาไม่ถูกต้อง",
-                description="กรุณาระบุเวลาตามรูปแบบที่กำหนด ตัวอย่างดังนี้ครับ:\n"
+                title="⏱️ ขอรูปแบบเวลาอีกนิดนะ",
+                description="ผมยังอ่านเวลานี้ไม่ออก ลองพิมพ์ตามตัวอย่างนี้ได้เลย:\n"
                             "• `30s` = 30 วินาที\n"
                             "• `10m` = 10 นาที\n"
                             "• `1h` = 1 ชั่วโมง\n"
@@ -55,8 +55,8 @@ class ReminderCog(commands.Cog):
         max_seconds = 86400
         if seconds > max_seconds:
             embed = discord.Embed(
-                title="⚠️ เวลาแจ้งเตือนนานเกินไป",
-                description="ระบบอนุญาตให้ตั้งเวลาแจ้งเตือนได้สูงสุดไม่เกิน **24 ชั่วโมง (24h)** เท่านั้นครับ",
+                title="⏳ ตั้งเวลาไกลไปนิดหนึ่ง",
+                description="ตอนนี้ผมรับตั้งเตือนได้สูงสุด **24 ชั่วโมง (24h)** ลองลดเวลาลงหน่อยนะครับ",
                 color=0xe74c3c
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -64,8 +64,8 @@ class ReminderCog(commands.Cog):
 
         if seconds <= 0:
             embed = discord.Embed(
-                title="❌ เวลาแจ้งเตือนไม่ถูกต้อง",
-                description="เวลาแจ้งเตือนต้องมากกว่า 0 วินาทีครับ",
+                title="⏱️ เวลาต้องมากกว่า 0 นะ",
+                description="ลองตั้งเวลาอย่างน้อย 1 วินาที แล้วผมจะช่วยเตือนให้ครับ",
                 color=0xe74c3c
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -73,13 +73,13 @@ class ReminderCog(commands.Cog):
 
         # Confirm reminder registration
         embed = discord.Embed(
-            description=f"⏰ บอทจะส่งข้อความแจ้งเตือนคุณในอีก **{unit_display}** ข้างหน้าครับ\n\n"
+            description=f"⏰ ได้เลย! ผมจะกลับมาเตือนคุณในอีก **{unit_display}** นะครับ\n\n"
                         f"📝 **บันทึกช่วยจำ:** >>> {message}",
             color=0x3498db  # Material Blue
         )
         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-        embed.set_author(name="ตั้งเวลาเตือนความจำ • Reminder Set", icon_url=avatar_url)
-        embed.set_footer(text="Javis Reminder Service", icon_url=avatar_url)
+        embed.set_author(name="ตั้งเตือนให้แล้ว • Reminder", icon_url=avatar_url)
+        embed.set_footer(text="ฝากไว้กับผมได้เลย เดี๋ยวมาเตือนนะ 🔔", icon_url=avatar_url)
         await interaction.response.send_message(embed=embed)
 
         # Wait non-blockingly
@@ -89,11 +89,11 @@ class ReminderCog(commands.Cog):
         try:
             # We ping the user who set the reminder
             reminder_embed = discord.Embed(
-                description=f"📢 **แจ้งเตือนเหตุการณ์ครบกำหนด:**\n\n>>> {message}",
+                description=f"📢 **ถึงเวลาที่ให้ผมเตือนแล้วนะ!**\n\n>>> {message}",
                 color=0xe67e22  # Orange Alert
             )
-            reminder_embed.set_author(name="ระบบแจ้งเตือนความจำ • Alert Notification", icon_url=avatar_url)
-            reminder_embed.set_footer(text=f"เตือนความจำตั้งขึ้นจากเมื่อ {unit_display} ที่แล้ว", icon_url=avatar_url)
+            reminder_embed.set_author(name="Javis แวะมาเตือนแล้ว 🔔", icon_url=avatar_url)
+            reminder_embed.set_footer(text=f"คุณฝากข้อความนี้ไว้เมื่อ {unit_display} ที่แล้ว", icon_url=avatar_url)
             await interaction.channel.send(content=interaction.user.mention, embed=reminder_embed)
         except Exception as e:
             print(f"Error sending reminder: {e}")
