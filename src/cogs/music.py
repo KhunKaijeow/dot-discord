@@ -372,6 +372,14 @@ class GuildPlayState:
                 self.guild_id,
                 e,
             )
+            import traceback
+            tb = traceback.format_exc()
+            if len(tb) > 1000:
+                tb = tb[:1000] + "\n..."
+            try:
+                await interaction.channel.send(f"❌ **เกิดข้อผิดพลาดในการโหลดเพลง:**\n```py\n{tb}\n```")
+            except Exception:
+                pass
             await loading_msg.edit(content=f"😅 เล่นเพลง **{title}** ไม่สำเร็จ ลองเลือกเพลงอื่นหรือสั่งใหม่อีกครั้งนะครับ")
             await self.play_next_async(interaction)
 
