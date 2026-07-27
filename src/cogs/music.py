@@ -1,36 +1,49 @@
 """Music playback slash commands and per-guild queue state."""
 
-import discord
-from discord.ext import commands
-from discord import app_commands
 import asyncio
+import logging
 import shlex
-import urllib.request
-import re
-from bs4 import BeautifulSoup
+import shutil
+from typing import Any
+
+import discord
+from discord import app_commands
+from discord.ext import commands
 import yt_dlp
+
+
+logger = logging.getLogger(__name__)
+
+
+def _javascript_runtimes() -> dict[str, dict[str, str]]:
+    """Enable a supported runtime so yt-dlp can solve YouTube JS challenges."""
+    runtime_commands = (
+        ("deno", "deno"),
+        ("node", "node"),
+        ("quickjs", "qjs"),
+    )
+    for runtime_name, command in runtime_commands:
+        if runtime_path := shutil.which(command):
+            return {runtime_name: {"path": runtime_path}}
+    return {}
+
 
 # yt-dlp configuration
 ytdl_format_options = {
-    'format': 'bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
-    'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
-    'default_search': 'auto',
-    'source_address': '0.0.0.0',
+    "format": "bestaudio[protocol^=http]/bestaudio/best",
+    "noplaylist": True,
+    "ignoreerrors": False,
+    "quiet": True,
+    "no_warnings": True,
+    "default_search": "ytsearch",
+    "source_address": "0.0.0.0",
+    "socket_timeout": 20,
+    "retries": 3,
+    "extractor_retries": 3,
+    "fragment_retries": 3,
+    "js_runtimes": _javascript_runtimes(),
 }
 
-ffmpeg_options = {
-    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-    'options': '-vn',
-}
-
-ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
@@ -43,24 +56,47 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
     @classmethod
     async def from_url(cls, url, *, loop=None, stream=True):
-        loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
-        
-        if 'entries' in data:
-            # Take first item from search results
-            data = data['entries'][0]
+        loop = loop or asyncio.get_running_loop()
+
+        def extract() -> tuple[dict[str, Any], str]:
+            # YoutubeDL instances are not shared because multiple guilds may
+            # resolve songs concurrently.
+            with yt_dlp.YoutubeDL(ytdl_format_options) as ytdl:
+                extracted = ytdl.extract_info(url, download=not stream)
+                if not extracted:
+                    raise ValueError("yt-dlp returned no media information")
+
+                if "entries" in extracted:
+                    extracted = next(
+                        (entry for entry in extracted["entries"] if entry),
+                        None,
+                    )
+                    if not extracted:
+                        raise ValueError("No YouTube search results found")
+
+                filename = (
+                    extracted["url"]
+                    if stream
+                    else ytdl.prepare_filename(extracted)
+                )
+                return extracted, filename
+
+        data, filename = await loop.run_in_executor(None, extract)
 
         # Extract HTTP headers from yt-dlp to bypass YouTube 403 Forbidden blocks
-        http_headers = data.get('http_headers', {})
+        http_headers = data.get("http_headers", {})
         headers_str = "".join(f"{k}: {v}\r\n" for k, v in http_headers.items())
-        
         before_opts = (
-            '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
-            f'-headers {shlex.quote(headers_str)}'
+            "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+            f"-headers {shlex.quote(headers_str)}"
         )
 
-        filename = data['url'] if stream else ytdl.prepare_filename(data)
-        return cls(discord.FFmpegPCMAudio(filename, before_options=before_opts, options='-vn'), data=data)
+        audio = discord.FFmpegPCMAudio(
+            filename,
+            before_options=before_opts,
+            options="-vn",
+        )
+        return cls(audio, data=data)
 
 
 def resolve_spotify_track(url: str) -> str:
@@ -109,25 +145,37 @@ async def resolve_track_info(query: str, loop) -> tuple:
 
     is_url = query.startswith("http://") or query.startswith("https://")
     try:
-        search_query = query if is_url else f"ytsearch:{query}"
+        search_query = query if is_url else f"ytsearch1:{query}"
+
+        def extract_flat() -> dict[str, Any]:
+            options = {
+                **ytdl_format_options,
+                "extract_flat": "in_playlist",
+            }
+            with yt_dlp.YoutubeDL(options) as ytdl:
+                return ytdl.extract_info(search_query, download=False)
+
         data = await loop.run_in_executor(
-            None, 
-            lambda: yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True}).extract_info(search_query, download=False)
+            None,
+            extract_flat,
         )
-        if 'entries' in data:
-            if not data['entries']:
+        if not data:
+            return "Unknown Song", query
+        if "entries" in data:
+            entries = [entry for entry in data["entries"] if entry]
+            if not entries:
                 return "Unknown Song", query
-            first_entry = data['entries'][0]
-            title = first_entry.get('title', 'Unknown Song')
-            video_id = first_entry.get('id')
+            first_entry = entries[0]
+            title = first_entry.get("title", "Unknown Song")
+            video_id = first_entry.get("id")
             if video_id:
                 return title, f"https://www.youtube.com/watch?v={video_id}"
             return title, query
         else:
-            title = data.get('title', 'Unknown Song')
+            title = data.get("title", "Unknown Song")
             return title, query
     except Exception as e:
-        print(f"YouTube resolve error: {e}")
+        logger.exception("YouTube resolve failed: %s", e)
         return "Unknown Song", query
 
 
@@ -178,10 +226,8 @@ class MusicControlView(discord.ui.View):
             return
 
         state = get_state(self.bot, self.guild_id)
-        state.queue.clear()
-        state.current = None
-
-        await voice_client.disconnect()
+        state.voice_client = voice_client
+        await state.stop_and_disconnect()
         embed = discord.Embed(description="👋 **หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะครับ**", color=0xe74c3c)
         await interaction.response.send_message(embed=embed)
 
@@ -193,11 +239,27 @@ class GuildPlayState:
         self.queue = []
         self.current = None
         self.voice_client = None
+        self.stop_requested = False
+        self.start_lock = asyncio.Lock()
 
     async def play_next_async(self, interaction):
+        if self.stop_requested:
+            return
+
         if not self.queue:
             self.current = None
-            embed = discord.Embed(description="📭 **เพลงในคิวหมดแล้วนะ เพิ่มเพลงใหม่มาได้เลย!**", color=0xe74c3c)
+            voice_client = self.voice_client
+            try:
+                if voice_client and voice_client.is_connected():
+                    await voice_client.disconnect()
+            finally:
+                self.voice_client = None
+            embed = discord.Embed(
+                description=(
+                    "📭 **เพลงในคิวหมดแล้ว ผมออกจากห้องเสียงให้แล้วนะครับ**"
+                ),
+                color=0xE74C3C,
+            )
             await interaction.channel.send(embed=embed)
             return
         
@@ -236,15 +298,44 @@ class GuildPlayState:
 
             def after_playing(error):
                 if error:
-                    print(f"Playback error: {error}")
-                asyncio.run_coroutine_threadsafe(self.play_next_async(interaction), self.bot.loop)
+                    logger.error("Playback error in guild %s: %s", self.guild_id, error)
+                future = asyncio.run_coroutine_threadsafe(
+                    self.play_next_async(interaction),
+                    self.bot.loop,
+                )
+                future.add_done_callback(self._log_playback_callback_error)
             
             self.voice_client.play(source, after=after_playing)
             view = MusicControlView(self.bot, self.guild_id)
             await loading_msg.edit(content=None, embed=embed, view=view)
         except Exception as e:
+            logger.exception(
+                "Unable to play %r in guild %s: %s",
+                query,
+                self.guild_id,
+                e,
+            )
             await loading_msg.edit(content=f"😅 เล่นเพลง **{title}** ไม่สำเร็จ ลองเลือกเพลงอื่นหรือสั่งใหม่อีกครั้งนะครับ")
             await self.play_next_async(interaction)
+
+    @staticmethod
+    def _log_playback_callback_error(future):
+        try:
+            future.result()
+        except Exception:
+            logger.exception("Could not advance the music queue")
+
+    async def stop_and_disconnect(self):
+        self.stop_requested = True
+        self.queue.clear()
+        self.current = None
+        voice_client = self.voice_client
+        self.voice_client = None
+        try:
+            if voice_client and voice_client.is_connected():
+                await voice_client.disconnect()
+        finally:
+            self.voice_client = None
 
 
 # Global dictionary storing guild playback states
@@ -281,6 +372,7 @@ class MusicCog(commands.Cog):
 
         state = get_state(self.bot, interaction.guild.id)
         state.voice_client = voice_client
+        state.stop_requested = False
 
         # Resolve track metadata
         title, resolved_query = await resolve_track_info(query, self.bot.loop)
@@ -292,26 +384,25 @@ class MusicCog(commands.Cog):
             'user': interaction.user
         })
 
-        if not voice_client.is_playing() and not voice_client.is_paused():
-            # If not currently playing, start playing
-            embed = discord.Embed(
-                description=f"🎉 **เพิ่มให้แล้ว เพลงกำลังเริ่มเล่นนะ!**\n\n🎵 **{title}**",
-                color=0x2ecc71  # Mint Green
-            )
-            embed.add_field(name="👤 ผู้ขอเพลง", value=interaction.user.mention, inline=True)
-            avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            await interaction.followup.send(embed=embed)
-            await state.play_next_async(interaction)
-        else:
-            # If already playing, just notify queue addition
-            embed = discord.Embed(
-                description=f"📥 **เพิ่มเพลงนี้เข้าคิวให้แล้วนะ**\n\n🎵 **{title}**",
-                color=0x3498db  # Material Blue
-            )
-            embed.add_field(name="👤 ผู้ขอเพลง", value=interaction.user.mention, inline=True)
-            embed.add_field(name="📋 ลำดับในคิว", value=f"`#{len(state.queue)}`", inline=True)
-            avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            await interaction.followup.send(embed=embed)
+        async with state.start_lock:
+            if not voice_client.is_playing() and not voice_client.is_paused():
+                # If not currently playing, start playing
+                embed = discord.Embed(
+                    description=f"🎉 **เพิ่มให้แล้ว เพลงกำลังเริ่มเล่นนะ!**\n\n🎵 **{title}**",
+                    color=0x2ecc71  # Mint Green
+                )
+                embed.add_field(name="👤 ผู้ขอเพลง", value=interaction.user.mention, inline=True)
+                await interaction.followup.send(embed=embed)
+                await state.play_next_async(interaction)
+            else:
+                # If already playing, just notify queue addition
+                embed = discord.Embed(
+                    description=f"📥 **เพิ่มเพลงนี้เข้าคิวให้แล้วนะ**\n\n🎵 **{title}**",
+                    color=0x3498db  # Material Blue
+                )
+                embed.add_field(name="👤 ผู้ขอเพลง", value=interaction.user.mention, inline=True)
+                embed.add_field(name="📋 ลำดับในคิว", value=f"`#{len(state.queue)}`", inline=True)
+                await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="skip", description="ข้ามเพลงที่กำลังเล่นอยู่")
     async def skip(self, interaction: discord.Interaction):
@@ -386,10 +477,8 @@ class MusicCog(commands.Cog):
 
         # Clear queue
         state = get_state(self.bot, interaction.guild.id)
-        state.queue.clear()
-        state.current = None
-
-        await voice_client.disconnect()
+        state.voice_client = voice_client
+        await state.stop_and_disconnect()
         embed = discord.Embed(description="👋 **หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะครับ**", color=0xe74c3c)
         await interaction.response.send_message(embed=embed)
 
@@ -416,5 +505,10 @@ def load_opus_lib():
 
 # Setup function to register cog
 async def setup(bot):
+    if not ytdl_format_options["js_runtimes"]:
+        logger.warning(
+            "No supported JavaScript runtime found; install Deno 2.3+ "
+            "or Node.js 22+ for reliable YouTube playback"
+        )
     load_opus_lib()
     await bot.add_cog(MusicCog(bot))

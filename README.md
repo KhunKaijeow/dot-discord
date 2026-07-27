@@ -44,6 +44,7 @@
 
 - Python 3.12 หรือใหม่กว่า
 - FFmpeg และ Opus สำหรับระบบ Voice
+- Deno 2.3+ หรือ Node.js 22+ สำหรับให้ yt-dlp เล่นเพลงจาก YouTube
 - Discord Bot Token
 - Gemini API Key
 - Valorant API Key (ไม่บังคับ)
@@ -190,7 +191,8 @@ Logged in as ...
   `GEMINI_API_KEY`
 - `LoginFailure: Improper token` — สร้างหรือคัดลอก Discord Bot Token ใหม่
 - Slash Commands ไม่แสดง — ตรวจ scope `applications.commands` และรอให้ Discord sync
-- เล่นเพลงไม่ได้ — ตรวจว่า FFmpeg/Opus ติดตั้งแล้วและบอทมีสิทธิ์ Connect/Speak
+- เล่นเพลงไม่ได้ — ตรวจว่า FFmpeg/Opus และ Deno 2.3+ หรือ Node.js 22+
+  ติดตั้งแล้ว รวมถึงตรวจสิทธิ์ Connect/Speak ของบอท
 - คำสั่ง Valorant ใช้ไม่ได้ — ตรวจ `VALORANT_API_KEY`; ฟีเจอร์อื่นยังใช้งานได้ตามปกติ
 - คำสั่งดูดวงใช้ไม่ได้ — ตรวจ Prokerala credentials และเครดิตคงเหลือของบัญชี
 
