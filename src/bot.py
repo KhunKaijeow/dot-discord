@@ -20,6 +20,7 @@ COG_EXTENSIONS = (
     "src.cogs.news",
     "src.cogs.reminder",
     "src.cogs.translator",
+    "src.cogs.horoscope",
 )
 
 

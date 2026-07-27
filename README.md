@@ -12,6 +12,8 @@
 - ดูสภาพอากาศและสถานะเซิร์ฟเวอร์ Valorant
 - ค้นหาเนื้อเพลง สรุปข่าว แปลภาษา และสร้างภาพ
 - ตั้งเวลาแจ้งเตือนสูงสุด 24 ชั่วโมง
+- ดูดวงรายวันครบ 12 ราศีจาก Prokerala พร้อมคำทำนายด้านความรัก งาน และสุขภาพ
+- ดึงสีประจำวันตามธรรมเนียมไทยจาก Wikipedia พร้อมแสดงแหล่งที่มา
 
 ## Slash Commands
 
@@ -35,6 +37,8 @@
 | `/translate` | แปลข้อความเป็นภาษาที่เลือก |
 | `/draw` | สร้างภาพจากข้อความ |
 | `/remind` | ตั้งเวลาแจ้งเตือน เช่น `30s`, `10m` หรือ `2h` |
+| `/horoscope` | ดูดวงรายวันจาก Prokerala พร้อมสีประจำวันจากแหล่งอ้างอิง |
+| `/lucky-shirt` | ดูสีประจำวันตามธรรมเนียมไทยจาก Wikipedia |
 
 ## สิ่งที่ต้องมี
 
@@ -43,6 +47,7 @@
 - Discord Bot Token
 - Gemini API Key
 - Valorant API Key (ไม่บังคับ)
+- Prokerala API Client ID และ Client Secret (จำเป็นสำหรับคำสั่งดูดวง)
 
 ## ติดตั้ง
 
@@ -90,6 +95,8 @@ cp .env.example .env
 DISCORD_TOKEN=your_discord_bot_token
 GEMINI_API_KEY=your_gemini_api_key
 VALORANT_API_KEY=your_valorant_api_key
+PROKERALA_CLIENT_ID=your_prokerala_client_id
+PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
 ```
 
 | ตัวแปร | จำเป็น | แหล่งที่มา |
@@ -97,8 +104,19 @@ VALORANT_API_KEY=your_valorant_api_key
 | `DISCORD_TOKEN` | ใช่ | [Discord Developer Portal](https://discord.com/developers/applications) |
 | `GEMINI_API_KEY` | ใช่ | [Google AI Studio](https://aistudio.google.com/) |
 | `VALORANT_API_KEY` | ไม่ | [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) |
+| `PROKERALA_CLIENT_ID` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
+| `PROKERALA_CLIENT_SECRET` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
 
 ไฟล์ `.env` ถูก ignore ไว้แล้ว ห้าม commit token หรือ API key ขึ้น repository
+
+คำสั่ง `/horoscope` ใช้ Advanced Daily Prediction แบบครบ 4 หมวด ซึ่งใช้
+1,000 Prokerala credits ต่อราศีต่อวัน บอทจะ cache ผลไว้จนเปลี่ยนวันเพื่อลด
+การเรียก API ซ้ำ หากมีการรีสตาร์ทบอท cache ในหน่วยความจำจะเริ่มใหม่
+
+สีในคำสั่ง `/horoscope` และ `/lucky-shirt` ดึงจากตาราง
+[Colors of the day in Thailand](https://en.wikipedia.org/wiki/Colors_of_the_day_in_Thailand)
+ผ่าน Wikimedia API และ cache ไว้ 24 ชั่วโมง เนื้อหาต้นทางเผยแพร่ภายใต้
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 
 ## ตั้งค่า Discord Application
 
@@ -119,7 +137,7 @@ python main.py
 เมื่อเชื่อมต่อสำเร็จจะเห็นข้อความลักษณะนี้:
 
 ```text
-Synced 18 command(s)
+Synced 20 command(s)
 Logged in as ...
 ```
 
@@ -127,7 +145,8 @@ Logged in as ...
 
 1. สร้างโปรเจกต์ใหม่ใน Railway และเลือก **Deploy from GitHub repo**
 2. เลือก repository นี้
-3. เพิ่ม `DISCORD_TOKEN`, `GEMINI_API_KEY` และ `VALORANT_API_KEY` ในหน้า
+3. เพิ่ม `DISCORD_TOKEN`, `GEMINI_API_KEY`, `VALORANT_API_KEY`,
+   `PROKERALA_CLIENT_ID` และ `PROKERALA_CLIENT_SECRET` ในหน้า
    **Variables**
 4. กำหนด Start Command เป็น:
 
@@ -173,6 +192,7 @@ Logged in as ...
 - Slash Commands ไม่แสดง — ตรวจ scope `applications.commands` และรอให้ Discord sync
 - เล่นเพลงไม่ได้ — ตรวจว่า FFmpeg/Opus ติดตั้งแล้วและบอทมีสิทธิ์ Connect/Speak
 - คำสั่ง Valorant ใช้ไม่ได้ — ตรวจ `VALORANT_API_KEY`; ฟีเจอร์อื่นยังใช้งานได้ตามปกติ
+- คำสั่งดูดวงใช้ไม่ได้ — ตรวจ Prokerala credentials และเครดิตคงเหลือของบัญชี
 
 ## ความปลอดภัย
 
