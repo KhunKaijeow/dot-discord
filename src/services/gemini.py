@@ -1,8 +1,10 @@
+"""Google Gemini client and per-channel conversation state."""
+
 import random
 import time
 from google import genai
 from google.genai import types
-from src.config import GEMINI_API_KEY
+from ..config import GEMINI_API_KEY
 
 class GeminiService:
     def __init__(self):

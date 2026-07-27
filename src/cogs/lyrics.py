@@ -1,9 +1,11 @@
+"""Song lyrics slash commands."""
+
 import discord
 from discord.ext import commands
 from discord import app_commands
 import aiohttp
 import urllib.parse
-from src.music import get_state
+from .music import get_state
 
 class LyricsCog(commands.Cog):
     def __init__(self, bot):

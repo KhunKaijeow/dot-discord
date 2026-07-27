@@ -1,37 +1,38 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
+"""Discord bot composition and core AI chat commands."""
+
 import asyncio
-from src.gemini import GeminiService
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+from .services.gemini import GeminiService
+
+
+COG_EXTENSIONS = (
+    "src.cogs.music",
+    "src.cogs.valorant",
+    "src.cogs.stock",
+    "src.cogs.weather",
+    "src.cogs.crypto",
+    "src.cogs.lyrics",
+    "src.cogs.draw",
+    "src.cogs.news",
+    "src.cogs.reminder",
+    "src.cogs.translator",
+)
+
 
 class GeminiBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
-        # intents.message_content = True  # Commented out to avoid PrivilegedIntentsRequired error. Enable if using prefix commands.
         super().__init__(command_prefix="!", intents=intents)
         self.gemini_service = GeminiService()
 
     async def setup_hook(self):
-        from src.music import setup as music_setup
-        from src.valorant import setup as valorant_setup
-        from src.stock import setup as stock_setup
-        from src.weather import setup as weather_setup
-        from src.crypto import setup as crypto_setup
-        from src.lyrics import setup as lyrics_setup
-        from src.draw import setup as draw_setup
-        from src.news import setup as news_setup
-        from src.reminder import setup as reminder_setup
-        from src.translator import setup as translator_setup
-        await music_setup(self)
-        await valorant_setup(self)
-        await stock_setup(self)
-        await weather_setup(self)
-        await crypto_setup(self)
-        await lyrics_setup(self)
-        await draw_setup(self)
-        await news_setup(self)
-        await reminder_setup(self)
-        await translator_setup(self)
+        for extension in COG_EXTENSIONS:
+            await self.load_extension(extension)
+
 
 bot = GeminiBot()
 

@@ -1,8 +1,10 @@
+"""Valorant service status slash commands."""
+
 import discord
 from discord.ext import commands
 from discord import app_commands
 import aiohttp
-from src.config import VALORANT_API_KEY
+from ..config import VALORANT_API_KEY
 
 class ValorantCog(commands.Cog):
     def __init__(self, bot):

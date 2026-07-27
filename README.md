@@ -144,19 +144,26 @@ Logged in as ...
 
 ```text
 .
-├── main.py              # Entry point
-├── requirements.txt     # Python dependencies
-├── .env.example         # ตัวอย่างตัวแปรแวดล้อม
+├── main.py                  # Entry point สำหรับ local และ Railway
+├── requirements.txt         # Python dependencies
+├── .env.example             # ตัวอย่างตัวแปรแวดล้อม
+├── docs/
+│   ├── architecture.md      # ขอบเขตและแนวทางเพิ่มโมดูล
+│   └── debug/               # Reference artifacts สำหรับ debugging
 └── src/
-    ├── bot.py           # Bot และคำสั่ง Gemini
-    ├── config.py        # Environment configuration
-    ├── gemini.py        # Gemini service
-    ├── music.py         # Music player
-    ├── stock.py         # Stock information
-    ├── crypto.py        # Cryptocurrency information
-    ├── weather.py       # Weather information
-    └── ...              # Feature cogs อื่น ๆ
+    ├── bot.py               # ประกอบ Bot, โหลด cogs และคำสั่งหลัก
+    ├── config.py            # Environment configuration
+    ├── cogs/                # Slash commands แยกตามฟีเจอร์
+    │   ├── music.py
+    │   ├── stock.py
+    │   ├── weather.py
+    │   └── ...
+    └── services/            # Client/logic สำหรับบริการภายนอก
+        └── gemini.py
 ```
+
+รายละเอียด dependency direction และวิธีเพิ่มคำสั่งใหม่อยู่ใน
+[`docs/architecture.md`](docs/architecture.md)
 
 ## แก้ไขปัญหาเบื้องต้น
 

@@ -1,3 +1,5 @@
+"""Music playback slash commands and per-guild queue state."""
+
 import discord
 from discord.ext import commands
 from discord import app_commands
