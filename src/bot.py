@@ -71,7 +71,6 @@ async def ask(interaction: discord.Interaction, prompt: str):
         answer = answer[:1980] + "\n...(คำตอบยาวเกินไป ถูกจำกัดการแสดงผล)..."
     
     embed.add_field(name="🤖 คำตอบของผม", value=answer, inline=False)
-    embed.set_footer(text="ตอบโดย Javis AI • Gemini 3.5 Flash", icon_url=avatar_url)
     
     await interaction.followup.send(embed=embed)
 
@@ -82,6 +81,4 @@ async def reset_chat(interaction: discord.Interaction):
         description="🧹 **ล้างประวัติแชทให้แล้วนะ!** เริ่มคุยเรื่องใหม่กันได้เลยครับ",
         color=0x2ecc71  # Mint Green
     )
-    avatar_url = bot.user.display_avatar.url if bot.user else None
-    embed.set_footer(text="พร้อมเริ่มบทสนทนาใหม่เสมอ ✨", icon_url=avatar_url)
     await interaction.response.send_message(embed=embed)

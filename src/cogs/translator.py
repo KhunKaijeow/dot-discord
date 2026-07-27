@@ -59,7 +59,6 @@ class TranslatorCog(commands.Cog):
                         embed.add_field(name="📥 ข้อความต้นฉบับ", value=f"```\n{text}\n```", inline=False)
                         embed.add_field(name="📤 ผลลัพธ์การแปล", value=f"```\n{translated_text}\n```", inline=False)
                         
-                        embed.set_footer(text="แปลผ่าน Google Translate", icon_url=avatar_url)
 
                         await interaction.followup.send(embed=embed)
                     else:
@@ -69,7 +68,6 @@ class TranslatorCog(commands.Cog):
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Translate • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
 
         except Exception as e:
@@ -79,7 +77,6 @@ class TranslatorCog(commands.Cog):
                 color=0xe74c3c
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Translate • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
 async def setup(bot):

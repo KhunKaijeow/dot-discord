@@ -85,7 +85,6 @@ class NewsCog(commands.Cog):
                     )
                     avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
                     embed.set_author(name="สรุปข่าวมาให้แล้ว • Daily News", icon_url=avatar_url)
-                    embed.set_footer(text="สรุปให้อ่านง่ายโดย Javis AI • Gemini", icon_url=avatar_url)
 
                     await interaction.followup.send(embed=embed)
 
@@ -96,7 +95,6 @@ class NewsCog(commands.Cog):
                 color=0xe74c3c
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis News • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
 async def setup(bot):

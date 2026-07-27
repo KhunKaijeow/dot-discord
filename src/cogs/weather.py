@@ -146,7 +146,6 @@ class WeatherCog(commands.Cog):
                         embed.add_field(name="☀️ ดัชนี UV", value=f"ระดับ `{uv_index}`", inline=True)
                         embed.add_field(name="🌅 พระอาทิตย์", value=f"ขึ้น `{sunrise}`\nตก `{sunset}`", inline=True)
 
-                        embed.set_footer(text="ข้อมูลอากาศจาก wttr.in", icon_url=avatar_url)
 
                         await interaction.followup.send(embed=embed)
                     else:
@@ -156,7 +155,6 @@ class WeatherCog(commands.Cog):
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Weather • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
 
         except Exception as e:

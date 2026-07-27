@@ -78,7 +78,7 @@ class CryptoCog(commands.Cog):
                             color=color
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_author(name=f"เช็กราคาคริปโตให้แล้ว • {symbol}/USDT", icon_url=avatar_url)
+                        embed.set_author(name=f"{symbol}/USDT", icon_url=avatar_url)
                         
                         embed.add_field(name="💵 ราคาปัจจุบัน", value=f"`{format_price(last_price)}`", inline=True)
                         embed.add_field(name=f"{change_emoji} การเปลี่ยนแปลง 24 ชม.", value=f"`{change_str}`", inline=True)
@@ -88,7 +88,6 @@ class CryptoCog(commands.Cog):
                         embed.add_field(name="📉 ราคาต่ำสุด 24 ชม.", value=f"`{format_price(low_price)}`", inline=True)
                         embed.add_field(name="🔄 อัปเดตราคาแบบ", value="`เรียลไทม์`", inline=True)
                         
-                        embed.set_footer(text="ข้อมูลล่าสุดจาก Binance", icon_url=avatar_url)
 
                         await interaction.followup.send(embed=embed)
                     elif response.status == 400:
@@ -99,7 +98,6 @@ class CryptoCog(commands.Cog):
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Crypto • ลองค้นหาเหรียญอื่นได้นะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
                     else:
                         embed = discord.Embed(
@@ -108,7 +106,6 @@ class CryptoCog(commands.Cog):
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Crypto • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
 
         except Exception as e:
@@ -118,7 +115,6 @@ class CryptoCog(commands.Cog):
                 color=0xe74c3c
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Crypto • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
     @crypto.autocomplete('symbol')

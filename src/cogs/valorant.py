@@ -42,7 +42,6 @@ class ValorantCog(commands.Cog):
                       "5️⃣ สั่งรีสตาร์ทบอทเพื่อเริ่มใช้งานคำสั่งได้ทันทีครับ",
                 inline=False
             )
-            embed.set_footer(text="ทำครบแล้วรีสตาร์ทบอท จากนั้นลองใหม่ได้เลย", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
             return
 
@@ -93,7 +92,6 @@ class ValorantCog(commands.Cog):
                         else:
                             embed.add_field(name="🚨 เหตุขัดข้อง (Incidents)", value="✅ ทุกอย่างทำงานปกติดี ตอนนี้ยังไม่มีรายงานปัญหาครับ", inline=False)
 
-                        embed.set_footer(text="ข้อมูลสถานะจาก HenrikDev API", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
                     elif response.status == 401:
                         embed = discord.Embed(
@@ -101,7 +99,6 @@ class ValorantCog(commands.Cog):
                             description="ดูเหมือน `VALORANT_API_KEY` ในไฟล์ `.env` จะไม่ถูกต้องหรือหมดอายุ ลองสร้างคีย์ใหม่ที่ [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) นะครับ",
                             color=0xff4655
                         )
-                        embed.set_footer(text="เปลี่ยนคีย์แล้วรีสตาร์ทบอท จากนั้นลองใหม่ได้เลย", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
                     else:
                         embed = discord.Embed(
@@ -109,7 +106,6 @@ class ValorantCog(commands.Cog):
                             description=f"บริการสถานะตอบกลับไม่สำเร็จ (รหัส {response.status}) ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
                             color=0xff4655
                         )
-                        embed.set_footer(text="Javis VALORANT • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
 
         except Exception as e:
@@ -118,7 +114,6 @@ class ValorantCog(commands.Cog):
                 description="ขอโทษนะ ตอนนี้ผมติดต่อบริการสถานะ VALORANT ไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่ครับ",
                 color=0xff4655
             )
-            embed.set_footer(text="Javis VALORANT • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
 async def setup(bot):

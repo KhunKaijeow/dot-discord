@@ -89,7 +89,7 @@ class StockCog(commands.Cog):
                 color=color
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_author(name=f"เช็กราคาหุ้นให้แล้ว • {symbol} ({company_name})", icon_url=avatar_url)
+            embed.set_author(name=f"{symbol} ({company_name})", icon_url=avatar_url)
             
             # Format price showing sign changes
             price_display = f"`{currency_symbol}{current_price:,.2f}`"
@@ -103,7 +103,6 @@ class StockCog(commands.Cog):
 
             embed.add_field(name="💼 มูลค่าตลาดทั้งหมด (Market Cap)", value=f"`{format_large_number(market_cap)}`", inline=False)
             
-            embed.set_footer(text="ข้อมูลล่าสุดจาก Yahoo Finance", icon_url=avatar_url)
 
             await interaction.followup.send(embed=embed)
 
@@ -187,7 +186,6 @@ class StockCog(commands.Cog):
         embed.add_field(name="📈 กองทุนดัชนีสหรัฐฯ (Index ETFs)", value=etfs, inline=False)
         embed.add_field(name="🇹🇭 หุ้นยักษ์ใหญ่ไทย (SET Giants)", value=thai_giants, inline=False)
         
-        embed.set_footer(text="อยากดูหุ้นตัวอื่นก็พิมพ์ชื่อย่อมาได้เลยนะ", icon_url=avatar_url)
         
         await interaction.response.send_message(embed=embed)
 

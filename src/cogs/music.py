@@ -233,7 +233,6 @@ class GuildPlayState:
             embed.add_field(name="⏱️ ความยาว", value=f"`{duration_str}`", inline=True)
             embed.add_field(name="👤 ผู้ขอเพลง", value=user.mention, inline=True)
             
-            embed.set_footer(text="Javis Music • ขอให้ฟังเพลงอย่างมีความสุข 🎧", icon_url=avatar_url)
 
             def after_playing(error):
                 if error:
@@ -301,7 +300,6 @@ class MusicCog(commands.Cog):
             )
             embed.add_field(name="👤 ผู้ขอเพลง", value=interaction.user.mention, inline=True)
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Music • ขอให้ฟังเพลงอย่างมีความสุข 🎧", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
             await state.play_next_async(interaction)
         else:
@@ -313,7 +311,6 @@ class MusicCog(commands.Cog):
             embed.add_field(name="👤 ผู้ขอเพลง", value=interaction.user.mention, inline=True)
             embed.add_field(name="📋 ลำดับในคิว", value=f"`#{len(state.queue)}`", inline=True)
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Music • ใกล้ถึงคิวแล้ว รอฟังได้เลย", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="skip", description="ข้ามเพลงที่กำลังเล่นอยู่")
@@ -377,7 +374,6 @@ class MusicCog(commands.Cog):
                 queue_list += f"\n*และยังมีอีก {len(state.queue) - 10} เพลงในคิวคอยอยู่...*"
 
         embed.add_field(name="📋 คิวเพลงถัดไป (10 อันดับแรก)", value=queue_list, inline=False)
-        embed.set_footer(text="อยากฟังเพลงไหนเพิ่ม ส่งเข้าคิวมาได้เลย 🎶", icon_url=avatar_url)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="stop", description="หยุดเพลง ล้างคิว และออกจากห้องพูดคุย")

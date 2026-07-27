@@ -28,7 +28,6 @@ class DrawControlView(discord.ui.View):
             color=discord.Color.random()
         )
         embed.set_image(url=new_image_url)
-        embed.set_footer(text="วาดด้วย AI จาก Pollinations.ai")
 
         # Edit original message with new image
         await interaction.followup.edit_message(message_id=interaction.message.id, embed=embed, view=self)
@@ -53,7 +52,6 @@ class DrawCog(commands.Cog):
             color=discord.Color.random()
         )
         embed.set_image(url=image_url)
-        embed.set_footer(text="วาดด้วย AI จาก Pollinations.ai")
 
         view = DrawControlView(prompt)
         await interaction.response.send_message(embed=embed, view=view)

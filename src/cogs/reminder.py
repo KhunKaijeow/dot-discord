@@ -79,7 +79,6 @@ class ReminderCog(commands.Cog):
         )
         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
         embed.set_author(name="ตั้งเตือนให้แล้ว • Reminder", icon_url=avatar_url)
-        embed.set_footer(text="ฝากไว้กับผมได้เลย เดี๋ยวมาเตือนนะ 🔔", icon_url=avatar_url)
         await interaction.response.send_message(embed=embed)
 
         # Wait non-blockingly
@@ -93,7 +92,6 @@ class ReminderCog(commands.Cog):
                 color=0xe67e22  # Orange Alert
             )
             reminder_embed.set_author(name="Javis แวะมาเตือนแล้ว 🔔", icon_url=avatar_url)
-            reminder_embed.set_footer(text=f"คุณฝากข้อความนี้ไว้เมื่อ {unit_display} ที่แล้ว", icon_url=avatar_url)
             await interaction.channel.send(content=interaction.user.mention, embed=reminder_embed)
         except Exception as e:
             print(f"Error sending reminder: {e}")

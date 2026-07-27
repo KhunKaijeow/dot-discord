@@ -94,7 +94,6 @@ class LyricsCog(commands.Cog):
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
                         embed.set_author(name=f"เจอเนื้อเพลงแล้ว • {title}", icon_url=avatar_url)
-                        embed.set_footer(text="เนื้อเพลงจาก LRCLIB", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
                     else:
                         embed = discord.Embed(
@@ -103,7 +102,6 @@ class LyricsCog(commands.Cog):
                             color=0xe74c3c
                         )
                         avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_footer(text="Javis Lyrics • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
                         await interaction.followup.send(embed=embed)
 
         except Exception as e:
@@ -113,7 +111,6 @@ class LyricsCog(commands.Cog):
                 color=0xe74c3c
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_footer(text="Javis Lyrics • เดี๋ยวลองใหม่กันนะ", icon_url=avatar_url)
             await interaction.followup.send(embed=embed)
 
 async def setup(bot):
