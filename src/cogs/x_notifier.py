@@ -145,8 +145,6 @@ class XNotifierCog(commands.Cog):
                         if image_url:
                             embed.set_image(url=image_url)
 
-                        embed.set_footer(text="แจ้งเตือนข่าวสารเกมใหม่ล่าสุด • Javis")
-
                         await channel.send(embed=embed)
                         self.last_seen_guids.append(guid)
                         new_items_posted += 1

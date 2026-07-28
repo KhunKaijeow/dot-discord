@@ -87,7 +87,6 @@ class NewsCog(commands.Cog):
                     )
                     avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
                     embed.set_author(name="Google News • ข่าวสารล่าสุด", icon_url=avatar_url)
-                    embed.set_footer(text="คลิกที่หัวข้อข่าวเพื่อเปิดอ่านข่าวตัวเต็มในเบราว์เซอร์ได้ทันที")
 
                     await interaction.followup.send(embed=embed)
 

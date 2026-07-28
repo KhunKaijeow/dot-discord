@@ -71,7 +71,6 @@ class GoldCog(commands.Cog):
                 color=color,
                 timestamp=datetime.utcnow()
             )
-            embed.set_footer(text="ข้อมูลจาก Yahoo Finance • Real-time (ล่าช้า 10-15 นาที)")
 
             if current_price:
                 embed.add_field(name="💵 ราคาปัจจุบัน", value=f"`${current_price:,.2f} / ออนซ์`", inline=True)
@@ -157,7 +156,6 @@ class GoldCog(commands.Cog):
                 color=color,
                 timestamp=datetime.utcnow()
             )
-            embed.set_footer(text="คำนวณอัตโนมัติทางคณิตศาสตร์ • ไม่ใช้การวิเคราะห์จาก AI")
 
             # Add fields
             embed.add_field(
