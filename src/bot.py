@@ -21,6 +21,7 @@ COG_EXTENSIONS = (
     "src.cogs.reminder",
     "src.cogs.translator",
     "src.cogs.horoscope",
+    "src.cogs.x_notifier",
 )
 
 
