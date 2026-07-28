@@ -23,6 +23,8 @@ COG_EXTENSIONS = (
     "src.cogs.horoscope",
     "src.cogs.x_notifier",
     "src.cogs.gold",
+    "src.cogs.deals_notifier",
+    "src.cogs.dashboard",
 )
 
 
