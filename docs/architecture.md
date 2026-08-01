@@ -17,7 +17,6 @@ main.py
 - `src/cogs/` เก็บ Discord UI และ slash commands แยกหนึ่งไฟล์ต่อฟีเจอร์
 - `src/services/` ติดต่อ SDK หรือ API ภายนอก และไม่ควรผูกกับ Discord UI
 - `src/config.py` เป็นจุดเดียวสำหรับอ่าน environment variables
-- `docs/debug/` เก็บ response snapshot ที่ใช้ตรวจสอบ integration ไม่ใช่ runtime code
 
 Dependency ควรไหลจาก `bot` ไป `cogs`/`services` และจาก `cogs` ไป `services`
 หรือ `config` เท่านั้น หลีกเลี่ยงการ import `bot` กลับจากโมดูลย่อยเพื่อไม่ให้เกิด

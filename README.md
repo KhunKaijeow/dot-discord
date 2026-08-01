@@ -174,8 +174,7 @@ Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg
 ├── requirements.txt         # Python dependencies
 ├── .env.example             # ตัวอย่างตัวแปรแวดล้อม
 ├── docs/
-│   ├── architecture.md      # ขอบเขตและแนวทางเพิ่มโมดูล
-│   └── debug/               # Reference artifacts สำหรับ debugging
+│   └── architecture.md      # ขอบเขตและแนวทางเพิ่มโมดูล
 └── src/
     ├── bot.py               # ประกอบ Bot, โหลด cogs และคำสั่งหลัก
     ├── config.py            # Environment configuration

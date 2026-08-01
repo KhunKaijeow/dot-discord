@@ -25,7 +25,6 @@ COG_EXTENSIONS = (
     "src.cogs.gold",
     "src.cogs.deals_notifier",
     "src.cogs.dashboard",
-    "src.cogs.rpg",
 )
 
 

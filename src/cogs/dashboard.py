@@ -6,14 +6,17 @@ import asyncio
 import os
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, time, timezone
 import xml.etree.ElementTree as ET
+from zoneinfo import ZoneInfo
 import aiohttp
 
 logger = logging.getLogger("discord.dashboard")
 
 DATA_FILE = "data/dashboard.json"
 NEWS_FEED_URL = "https://news.google.com/rss?hl=th&gl=TH&ceid=TH:th"
+BANGKOK_TIMEZONE = ZoneInfo("Asia/Bangkok")
+DASHBOARD_UPDATE_TIME = time(hour=8, minute=0, tzinfo=BANGKOK_TIMEZONE)
 
 def fetch_financial_metrics():
     """Sync function to fetch financial indices from yfinance."""
@@ -136,11 +139,12 @@ class DashboardCog(commands.Cog):
             news_text = "• *ไม่มีข้อมูลข่าวสารชั่วคราว*"
 
         # 3. Build Embed
+        now = datetime.now(timezone.utc)
         embed = discord.Embed(
             title="📊 บอร์ดรายงานข้อมูลสรุปประจำวัน (Daily Dashboard)",
-            description=f"อัปเดตข้อมูลอัตโนมัติล่าสุดเมื่อ: <t:{int(datetime.utcnow().timestamp())}:R>",
+            description=f"อัปเดตข้อมูลอัตโนมัติล่าสุดเมื่อ: <t:{int(now.timestamp())}:R>",
             color=0x34495e,
-            timestamp=datetime.utcnow()
+            timestamp=now
         )
         embed.add_field(name="🏛️ ดัชนีการเงินและการลงทุนล่าสุด", value=finance_text, inline=False)
         embed.add_field(name="📰 สรุปข่าวเด่นร้อนแรงล่าสุด", value=news_text, inline=False)
@@ -149,9 +153,9 @@ class DashboardCog(commands.Cog):
         embed.set_author(name="Javis Server Monitor", icon_url=avatar_url)
         return embed
 
-    @tasks.loop(minutes=30.0)
+    @tasks.loop(time=DASHBOARD_UPDATE_TIME)
     async def update_dashboard_loop(self):
-        """Automatically updates the dashboard message every 30 minutes."""
+        """Automatically update the dashboard daily at 08:00 Bangkok time."""
         if not self.channel_id or not self.message_id:
             return
 
@@ -194,7 +198,7 @@ class DashboardCog(commands.Cog):
         self.save_state()
 
         confirm_embed = discord.Embed(
-            description=f"✅ **เปิดใช้งานบอร์ดข้อมูลสำเร็จ!** บอร์ดจะทำการอัปเดตตัวเองอัตโนมัติในช่อง {channel.mention} ทุก ๆ 30 นาทีครับ",
+            description=f"✅ **เปิดใช้งานบอร์ดข้อมูลสำเร็จ!** บอร์ดจะอัปเดตตัวเองอัตโนมัติในช่อง {channel.mention} ทุกวันเวลา **08:00 น. (เวลาไทย)** ครับ",
             color=0x2ecc71
         )
         await interaction.followup.send(embed=confirm_embed, ephemeral=True)
