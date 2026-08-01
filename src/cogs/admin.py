@@ -3,11 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+
+logger = logging.getLogger("discord.admin")
+
+
+def can_manage_guild(interaction: discord.Interaction) -> bool:
+    member = interaction.user
+    return bool(
+        interaction.guild
+        and isinstance(member, discord.Member)
+        and member.guild_permissions.manage_guild
+    )
 
 
 class ScheduleModal(discord.ui.Modal, title="ตั้งเวลา Morning Digest"):
@@ -46,7 +59,7 @@ class SettingsView(discord.ui.View):
         self.guild_id = guild_id
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        allowed = interaction.user.id == self.owner_id and interaction.permissions.manage_guild
+        allowed = interaction.user.id == self.owner_id and can_manage_guild(interaction)
         if not allowed:
             await interaction.response.send_message("คุณไม่มีสิทธิ์ใช้แผงควบคุมนี้", ephemeral=True)
         return allowed
@@ -86,10 +99,18 @@ class AdminCog(commands.Cog):
     @app_commands.command(name="settings", description="เปิดแผงตั้งค่าบอทสำหรับผู้ดูแล")
     @app_commands.default_permissions(manage_guild=True)
     async def settings(self, interaction: discord.Interaction):
-        if not interaction.guild or not interaction.permissions.manage_guild:
+        if not can_manage_guild(interaction):
             await interaction.response.send_message("คำสั่งนี้สำหรับผู้ดูแล Server เท่านั้น", ephemeral=True)
             return
-        row = await asyncio.to_thread(self.bot.database.get_settings, interaction.guild.id)
+        try:
+            row = await asyncio.to_thread(self.bot.database.get_settings, interaction.guild.id)
+        except Exception:
+            logger.exception("Could not load guild settings for guild %s", interaction.guild.id)
+            await interaction.response.send_message(
+                "โหลดการตั้งค่าไม่สำเร็จ กรุณาตรวจสอบสิทธิ์เขียนโฟลเดอร์ `data/`",
+                ephemeral=True,
+            )
+            return
         embed = discord.Embed(
             title="⚙️ Javis Admin Control Panel",
             description=(

@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import datetime, timezone
+import logging
 
 import discord
 from discord import app_commands
@@ -9,6 +10,9 @@ from discord.ext import commands
 
 from .services.gemini import GeminiService
 from .services.database import Database
+
+
+logger = logging.getLogger("discord.javis")
 
 
 COG_EXTENSIONS = (
@@ -115,7 +119,12 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         message = "คุณไม่มีสิทธิ์เพียงพอสำหรับคำสั่งนี้"
     else:
         message = "คำสั่งทำงานไม่สำเร็จ กรุณาลองใหม่ภายหลัง"
-        print(f"Application command failed: {type(error).__name__}")
+        root_error = getattr(error, "original", error)
+        logger.error(
+            "Application command failed: %s",
+            type(root_error).__name__,
+            exc_info=(type(root_error), root_error, root_error.__traceback__),
+        )
     if interaction.response.is_done():
         await interaction.followup.send(message, ephemeral=True)
     else:

@@ -2,7 +2,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import MagicMock
 
+import discord
+
+from src.cogs.admin import can_manage_guild
 from src.cogs.ai_tools import AIToolsCog
 from src.cogs.reminder import parse_duration
 from src.services.database import Database
@@ -36,6 +40,14 @@ class DatabaseTests(unittest.TestCase):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_admin_permission_uses_guild_member_permissions(self):
+        member = MagicMock(spec=discord.Member)
+        member.guild_permissions = discord.Permissions(manage_guild=True)
+        interaction = MagicMock()
+        interaction.guild = MagicMock()
+        interaction.user = member
+        self.assertTrue(can_manage_guild(interaction))
+
     def test_duration_bounds(self):
         self.assertEqual(parse_duration("2h"), 7200)
         with self.assertRaises(ValueError):
