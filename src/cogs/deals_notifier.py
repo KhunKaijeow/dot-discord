@@ -147,6 +147,7 @@ class DealsNotifierCog(commands.Cog):
     @app_commands.command(name="deals-setup", description="ตั้งห้องสำหรับแจ้งเตือนเกมแจกฟรี")
     @app_commands.describe(channel="ห้องแชทที่ต้องการให้รับแจ้งเตือนเกมแจกฟรี")
     @app_commands.default_permissions(manage_channels=True)
+    @app_commands.checks.has_permissions(manage_channels=True)
     async def deals_setup(self, interaction: discord.Interaction, channel: discord.TextChannel):
         self.channel_id = channel.id
         self.save_state()

@@ -186,6 +186,7 @@ class DashboardCog(commands.Cog):
     @app_commands.command(name="dashboard-setup", description="เปิดใช้งานและติดตั้งหน้าจอบอร์ดสรุปรายงานประจำวัน")
     @app_commands.describe(channel="ห้องแชทที่ต้องการเปิดหน้าจอบอร์ด")
     @app_commands.default_permissions(manage_channels=True)
+    @app_commands.checks.has_permissions(manage_channels=True)
     async def dashboard_setup(self, interaction: discord.Interaction, channel: discord.TextChannel):
         await interaction.response.defer(thinking=True)
         self.channel_id = channel.id

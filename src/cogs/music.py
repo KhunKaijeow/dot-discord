@@ -6,6 +6,7 @@ import asyncio
 from collections import deque
 from dataclasses import dataclass
 import logging
+import random
 import shlex
 import shutil
 from typing import Any
@@ -202,15 +203,15 @@ async def resolve_track(query: str, requester: discord.abc.User) -> Track:
 
 
 class YouTubeAudioSource(discord.PCMVolumeTransformer):
-    def __init__(self, source: discord.AudioSource, data: dict[str, Any]):
-        super().__init__(source, volume=0.5)
+    def __init__(self, source: discord.AudioSource, data: dict[str, Any], volume: float = 0.5):
+        super().__init__(source, volume=volume)
         self.data = data
         self.title = data.get("title") or "Unknown Song"
         self.webpage_url = data.get("webpage_url")
         self.thumbnail = data.get("thumbnail")
 
     @classmethod
-    async def create(cls, youtube_url: str) -> YouTubeAudioSource:
+    async def create(cls, youtube_url: str, volume: float = 0.5) -> YouTubeAudioSource:
         if not FFMPEG_EXECUTABLE:
             raise MusicError("เครื่องที่รันบอทยังไม่ได้ติดตั้ง FFmpeg")
 
@@ -241,7 +242,7 @@ class YouTubeAudioSource(discord.PCMVolumeTransformer):
             before_options=before_options,
             options="-vn",
         )
-        return cls(audio, data)
+        return cls(audio, data, volume)
 
 
 class GuildMusicState:
@@ -253,6 +254,9 @@ class GuildMusicState:
         self.voice_client: discord.VoiceClient | None = None
         self.text_channel: discord.abc.Messageable | None = None
         self.stop_requested = False
+        self.skip_requested = False
+        self.loop_mode = "off"
+        self.volume = 0.5
         self.advance_lock = asyncio.Lock()
 
     async def enqueue(
@@ -300,7 +304,7 @@ class GuildMusicState:
             f"🔄 **กำลังเตรียมเพลง:** {track.title}"
         )
         try:
-            source = await YouTubeAudioSource.create(track.youtube_url)
+            source = await YouTubeAudioSource.create(track.youtube_url, self.volume)
             voice_client.play(source, after=self._after_playing)
         except MusicError as error:
             logger.warning(
@@ -355,6 +359,13 @@ class GuildMusicState:
         future.add_done_callback(self._log_callback_error)
 
     async def _continue_after_track(self) -> None:
+        finished = self.current
+        if finished and not self.skip_requested:
+            if self.loop_mode == "track":
+                self.queue.appendleft(finished)
+            elif self.loop_mode == "queue":
+                self.queue.append(finished)
+        self.skip_requested = False
         self.current = None
         await self.play_next()
 
@@ -387,12 +398,18 @@ class GuildMusicState:
 
     async def stop(self) -> None:
         self.stop_requested = True
+        self.skip_requested = True
         self.queue.clear()
         self.current = None
         voice_client = self.voice_client
         self.voice_client = None
         if voice_client and voice_client.is_connected():
             await voice_client.disconnect()
+
+    def skip(self) -> None:
+        self.skip_requested = True
+        if self.voice_client:
+            self.voice_client.stop()
 
 
 music_states: dict[int, GuildMusicState] = {}
@@ -402,6 +419,13 @@ def get_state(bot: commands.Bot, guild_id: int) -> GuildMusicState:
     if guild_id not in music_states:
         music_states[guild_id] = GuildMusicState(bot, guild_id)
     return music_states[guild_id]
+
+
+def user_can_control_voice(interaction: discord.Interaction) -> bool:
+    if not interaction.guild or not interaction.guild.voice_client:
+        return True
+    user_voice = getattr(interaction.user, "voice", None)
+    return bool(user_voice and user_voice.channel == interaction.guild.voice_client.channel)
 
 
 class MusicControlView(discord.ui.View):
@@ -416,6 +440,9 @@ class MusicControlView(discord.ui.View):
         interaction: discord.Interaction,
         _: discord.ui.Button,
     ) -> None:
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or not voice.is_playing():
             await interaction.response.send_message(
@@ -436,6 +463,9 @@ class MusicControlView(discord.ui.View):
         interaction: discord.Interaction,
         _: discord.ui.Button,
     ) -> None:
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or not voice.is_paused():
             await interaction.response.send_message(
@@ -452,6 +482,9 @@ class MusicControlView(discord.ui.View):
         interaction: discord.Interaction,
         _: discord.ui.Button,
     ) -> None:
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or (not voice.is_playing() and not voice.is_paused()):
             await interaction.response.send_message(
@@ -459,7 +492,7 @@ class MusicControlView(discord.ui.View):
                 ephemeral=True,
             )
             return
-        voice.stop()
+        get_state(self.bot, self.guild_id).skip()
         await interaction.response.send_message("⏭️ ข้ามเพลงให้แล้วครับ")
 
     @discord.ui.button(
@@ -472,6 +505,9 @@ class MusicControlView(discord.ui.View):
         interaction: discord.Interaction,
         _: discord.ui.Button,
     ) -> None:
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
         state = get_state(self.bot, self.guild_id)
         await state.stop()
         await interaction.response.send_message(
@@ -512,6 +548,11 @@ class MusicCog(commands.Cog):
 
         voice_channel = interaction.user.voice.channel
         voice_client = interaction.guild.voice_client
+        if voice_client and voice_client.channel != voice_channel and (
+            voice_client.is_playing() or voice_client.is_paused()
+        ):
+            await interaction.followup.send("บอทกำลังใช้งานในห้องเสียงอื่นอยู่", ephemeral=True)
+            return
         try:
             if voice_client is None:
                 voice_client = await voice_channel.connect()
@@ -541,6 +582,9 @@ class MusicCog(commands.Cog):
 
     @app_commands.command(name="skip", description="ข้ามเพลงปัจจุบัน")
     async def skip(self, interaction: discord.Interaction) -> None:
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or (not voice.is_playing() and not voice.is_paused()):
             await interaction.response.send_message(
@@ -548,11 +592,14 @@ class MusicCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        voice.stop()
+        get_state(self.bot, interaction.guild.id).skip()
         await interaction.response.send_message("⏭️ ข้ามเพลงให้แล้วครับ")
 
     @app_commands.command(name="pause", description="พักเพลงชั่วคราว")
     async def pause(self, interaction: discord.Interaction) -> None:
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or not voice.is_playing():
             await interaction.response.send_message(
@@ -565,6 +612,9 @@ class MusicCog(commands.Cog):
 
     @app_commands.command(name="resume", description="เล่นเพลงที่พักไว้ต่อ")
     async def resume(self, interaction: discord.Interaction) -> None:
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or not voice.is_paused():
             await interaction.response.send_message(
@@ -607,11 +657,100 @@ class MusicCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="now-playing", description="ดูเพลงที่กำลังเล่นและสถานะการเล่น")
+    async def now_playing(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild:
+            return
+        state = get_state(self.bot, interaction.guild.id)
+        if not state.current:
+            await interaction.response.send_message("🎵 ตอนนี้ยังไม่มีเพลงเล่นอยู่", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            embed=discord.Embed(
+                title="🎵 Now Playing",
+                description=f"[{state.current.title}]({state.current.youtube_url})\nVolume `{int(state.volume * 100)}%` • Loop `{state.loop_mode}`",
+                color=0x9B59B6,
+            )
+        )
+
+    @app_commands.command(name="volume", description="ปรับระดับเสียง 0–100%")
+    async def volume(self, interaction: discord.Interaction, percent: app_commands.Range[int, 0, 100]) -> None:
+        if not interaction.guild:
+            return
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
+        state = get_state(self.bot, interaction.guild.id)
+        state.volume = percent / 100
+        voice = interaction.guild.voice_client
+        if voice and isinstance(voice.source, discord.PCMVolumeTransformer):
+            voice.source.volume = state.volume
+        await interaction.response.send_message(f"🔊 ตั้งระดับเสียงเป็น `{percent}%` แล้ว")
+
+    @app_commands.command(name="loop", description="ตั้งโหมดเล่นซ้ำ")
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="ปิด", value="off"),
+        app_commands.Choice(name="เพลงปัจจุบัน", value="track"),
+        app_commands.Choice(name="ทั้งคิว", value="queue"),
+    ])
+    async def loop(self, interaction: discord.Interaction, mode: str) -> None:
+        if not interaction.guild:
+            return
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
+        get_state(self.bot, interaction.guild.id).loop_mode = mode
+        await interaction.response.send_message(f"🔁 ตั้ง Loop เป็น `{mode}` แล้ว")
+
+    @app_commands.command(name="shuffle", description="สุ่มลำดับเพลงในคิว")
+    async def shuffle(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild:
+            return
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
+        state = get_state(self.bot, interaction.guild.id)
+        items = list(state.queue)
+        random.SystemRandom().shuffle(items)
+        state.queue = deque(items)
+        await interaction.response.send_message(f"🔀 สุ่มคิว `{len(items)}` เพลงแล้ว")
+
+    @app_commands.command(name="remove", description="นำเพลงออกจากคิวตามลำดับ")
+    async def remove(self, interaction: discord.Interaction, position: app_commands.Range[int, 1, 100]) -> None:
+        if not interaction.guild:
+            return
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
+        state = get_state(self.bot, interaction.guild.id)
+        if position > len(state.queue):
+            await interaction.response.send_message("ไม่พบลำดับเพลงนี้", ephemeral=True)
+            return
+        items = list(state.queue)
+        removed = items.pop(position - 1)
+        state.queue = deque(items)
+        await interaction.response.send_message(f"🗑️ นำ **{removed.title}** ออกจากคิวแล้ว")
+
+    @app_commands.command(name="clear-queue", description="ล้างเพลงที่รอทั้งหมดโดยไม่หยุดเพลงปัจจุบัน")
+    async def clear_queue(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild:
+            return
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
+        state = get_state(self.bot, interaction.guild.id)
+        count = len(state.queue)
+        state.queue.clear()
+        await interaction.response.send_message(f"🧹 ล้างคิว `{count}` เพลงแล้ว")
+
     @app_commands.command(
         name="stop",
         description="หยุดเพลง ล้างคิว และออกจากห้องเสียง",
     )
     async def stop(self, interaction: discord.Interaction) -> None:
+        if not user_can_control_voice(interaction):
+            await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
+            return
         if not interaction.guild or not interaction.guild.voice_client:
             await interaction.response.send_message(
                 "🎧 ตอนนี้บอทไม่ได้อยู่ในห้องเสียงครับ",

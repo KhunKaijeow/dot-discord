@@ -8,6 +8,7 @@ main.py
         ├── src.config
         ├── src.services
         └── src.cogs
+              └── data/javis.db
 ```
 
 ## ขอบเขตแต่ละส่วน
@@ -17,10 +18,16 @@ main.py
 - `src/cogs/` เก็บ Discord UI และ slash commands แยกหนึ่งไฟล์ต่อฟีเจอร์
 - `src/services/` ติดต่อ SDK หรือ API ภายนอก และไม่ควรผูกกับ Discord UI
 - `src/config.py` เป็นจุดเดียวสำหรับอ่าน environment variables
+- `src/services/database.py` เป็น persistence boundary สำหรับ SQLite โดยใช้
+  parameterized queries และเก็บ runtime state ใน `data/javis.db`
 
 Dependency ควรไหลจาก `bot` ไป `cogs`/`services` และจาก `cogs` ไป `services`
 หรือ `config` เท่านั้น หลีกเลี่ยงการ import `bot` กลับจากโมดูลย่อยเพื่อไม่ให้เกิด
 circular import
+
+Cog เข้าถึงฐานข้อมูลผ่าน `bot.database` และควรเรียก synchronous repository methods
+ด้วย `asyncio.to_thread` เพื่อไม่ block Discord Gateway ห้ามประกอบ SQL จาก input
+ของผู้ใช้ และต้องเพิ่มชื่อ column ลง allowlist ก่อนรองรับการตั้งค่าใหม่
 
 ## เพิ่ม slash command ใหม่
 

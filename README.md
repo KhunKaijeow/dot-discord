@@ -12,11 +12,16 @@
 - ตรวจสอบราคาหุ้น คริปโต และทองคำ พร้อมวิเคราะห์ทองคำทางเทคนิค
 - ดูสภาพอากาศและสถานะเซิร์ฟเวอร์ Valorant
 - ค้นหาเนื้อเพลง ดึงหัวข้อข่าว แปลภาษา และสร้างภาพ
-- ตั้งเวลาแจ้งเตือนสูงสุด 24 ชั่วโมง
+- ตั้งเวลาแจ้งเตือนแบบถาวร รองรับวันเวลาจริงและรอบแจ้งเตือนซ้ำ
 - ดูดวงรายวันครบ 12 ราศีจาก Prokerala พร้อมคำทำนายด้านความรัก งาน และสุขภาพ
 - ดึงสีประจำวันตามธรรมเนียมไทยจาก Wikipedia พร้อมแสดงแหล่งที่มา
 - แจ้งเตือนโพสต์ใหม่จาก sheapgamer และดีลเกมแจกฟรีอัตโนมัติ
 - แสดง Daily Dashboard สำหรับข่าวและข้อมูลตลาด โดยอัปเดตทุกวันเวลา 08:00 น. เวลาไทย
+- Price Alerts สำหรับหุ้น คริปโต และทองคำ พร้อมเงื่อนไขสูงกว่า/ต่ำกว่า
+- Morning Digest แยกห้อง เวลา และ Timezone ได้ต่อ Server
+- Reminder แบบถาวร รองรับวันเวลาจริงและการแจ้งเตือนซ้ำ
+- AI Message Tools ผ่านเมนูคลิกขวา พร้อม rate limit และการป้องกัน prompt injection
+- Admin Control Panel, Bot Health Status และระบบเพลงแบบ Volume/Loop/Shuffle
 
 ## Slash Commands
 
@@ -30,6 +35,12 @@
 | `/skip` | ข้ามเพลงปัจจุบัน |
 | `/queue` | แสดงคิวเพลง |
 | `/stop` | หยุดเพลง ล้างคิว และออกจาก Voice Channel |
+| `/now-playing` | ดูเพลงปัจจุบัน ระดับเสียง และโหมด Loop |
+| `/volume` | ปรับระดับเสียง 0–100% |
+| `/loop` | เล่นซ้ำเพลงปัจจุบันหรือทั้งคิว |
+| `/shuffle` | สุ่มเพลงที่รอในคิว |
+| `/remove` | นำเพลงออกจากคิวตามลำดับ |
+| `/clear-queue` | ล้างคิวโดยไม่หยุดเพลงปัจจุบัน |
 | `/lyrics` | ค้นหาเนื้อเพลงหรือใช้เพลงที่กำลังเล่น |
 | `/stock` | ดูข้อมูลหุ้นจากสัญลักษณ์ เช่น `AAPL` หรือ `PTT.BK` |
 | `/stock-popular` | แสดงตัวอย่างหุ้นยอดนิยม |
@@ -42,6 +53,10 @@
 | `/translate` | แปลข้อความเป็นภาษาที่เลือก |
 | `/draw` | สร้างภาพจากข้อความ |
 | `/remind` | ตั้งเวลาแจ้งเตือน เช่น `30s`, `10m` หรือ `2h` |
+| `/remind-at` | ตั้งเตือนด้วยวันเวลา `YYYY-MM-DD HH:MM` |
+| `/remind-every` | ตั้งแจ้งเตือนซ้ำตั้งแต่ทุก 1 นาทีถึง 1 ปี |
+| `/reminders` | ดู Reminder ที่ยังทำงานอยู่ |
+| `/reminder-cancel` | ยกเลิก Reminder ด้วย ID |
 | `/horoscope` | ดูดวงรายวันจาก Prokerala พร้อมสีประจำวันจากแหล่งอ้างอิง |
 | `/lucky-shirt` | ดูสีประจำวันตามธรรมเนียมไทยจาก Wikipedia |
 | `/x-setup` | ตั้งห้องรับแจ้งเตือนโพสต์ใหม่จาก sheapgamer |
@@ -50,6 +65,18 @@
 | `/deals-check` | แสดงดีลเกมแจกฟรีล่าสุดสูงสุด 3 รายการทันที |
 | `/dashboard-setup` | สร้าง Daily Dashboard ในห้องที่เลือก |
 | `/dashboard-update` | สั่งอัปเดตข้อมูลบน Dashboard ทันที |
+| `/price-alert add` | เพิ่มเงื่อนไขแจ้งเตือนราคาหุ้น คริปโต หรือทอง |
+| `/price-alert list` | ดู Price Alert ของผู้ใช้ |
+| `/price-alert remove` | ลบ Price Alert ด้วย ID |
+| `/digest setup` | ตั้งห้อง เวลา Timezone และเมืองสำหรับ Morning Digest |
+| `/digest preview` | ดูตัวอย่าง Morning Digest |
+| `/digest status` | ดูสถานะ Morning Digest |
+| `/digest disable` | ปิด Morning Digest |
+| `/settings` | เปิด Admin Control Panel แบบ Interactive |
+| `/bot-status` | ดู latency, uptime, runtime และจำนวนงานที่บันทึกไว้ |
+
+เมนู **Apps** เมื่อคลิกขวาข้อความมี `AI: สรุปข้อความ`, `AI: แปลเป็นไทย`
+และ `AI: อธิบายข้อความ` ผลลัพธ์จะแสดงแบบ Ephemeral เฉพาะผู้เรียกใช้งาน
 
 คำสั่ง `/x-setup`, `/deals-setup` และ `/dashboard-setup` ต้องใช้สิทธิ์
 **Manage Channels** ส่วนคำสั่งอื่นเปิดให้สมาชิกใช้งานตามสิทธิ์ของ Discord Server
@@ -61,14 +88,16 @@
 | แจ้งเตือน sheapgamer | ตรวจโพสต์ใหม่ทุก 5 นาที | RSS feed จาก rss.app |
 | แจ้งเตือนเกมแจกฟรี | ตรวจดีลใหม่ทุก 1 ชั่วโมง | GamerPower API |
 | Daily Dashboard | อัปเดตทุกวันเวลา 08:00 น. (`Asia/Bangkok`) | Yahoo Finance และ Google News RSS |
+| Persistent Reminder | ตรวจรายการที่ครบเวลาทุก 15 วินาที | SQLite |
+| Price Alerts | ตรวจราคาใหม่ทุก 5 นาที | Yahoo Finance และ Binance |
+| Morning Digest | ตรวจตารางเวลาของแต่ละ Server ทุก 1 นาที | SQLite, Yahoo Finance และ Google News |
 
 หลังใช้ `/dashboard-setup` บอทจะสร้าง Dashboard ครั้งแรกทันที และแก้ไขข้อความเดิม
 ตามตารางข้างต้น หากต้องการข้อมูลล่าสุดก่อนถึงรอบถัดไปให้ใช้ `/dashboard-update`
 บอทต้องออนไลน์ในเวลาที่กำหนดจึงจะทำงานตามรอบได้
 
-สถานะของระบบแจ้งเตือนและ Dashboard บันทึกเป็นไฟล์ JSON ในโฟลเดอร์ `data/`
-แต่ประวัติ Gemini, คิวเพลง และการเตือนจาก `/remind` เก็บในหน่วยความจำและจะหาย
-เมื่อบอทรีสตาร์ต
+Reminder, Price Alert และ Morning Digest บันทึกใน `data/javis.db` จึงไม่หายเมื่อ
+บอทรีสตาร์ต ส่วนประวัติ Gemini และคิวเพลงยังเก็บในหน่วยความจำ
 
 ## สิ่งที่ต้องมี
 
@@ -168,7 +197,7 @@ python main.py
 เมื่อเชื่อมต่อสำเร็จจะเห็นข้อความลักษณะนี้:
 
 ```text
-Synced 28 command(s)
+Synced 45 command(s)
 Logged in as ...
 ```
 
@@ -188,7 +217,7 @@ Logged in as ...
 5. Deploy โดยไม่ต้องสร้าง Public Domain หรือกำหนด `PORT`
 6. ใช้เพียง 1 replica เพื่อไม่ให้บอทหลาย process ใช้ token เดียวกันพร้อมกัน
 
-หากต้องการเก็บการตั้งค่าห้องของระบบแจ้งเตือนและ Dashboard ข้ามการ redeploy
+หากต้องการเก็บฐานข้อมูล Reminder, Price Alert, Morning Digest และการตั้งค่าห้องข้ามการ redeploy
 ให้ผูก Persistent Volume กับโฟลเดอร์ `data/` ตามการตั้งค่าของแพลตฟอร์มที่ใช้
 
 บอทเป็น worker ที่เชื่อมต่อ Discord Gateway โดยตรง จึงไม่ต้องมี HTTP health check
@@ -243,3 +272,10 @@ Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg
 - อย่าเผยแพร่ไฟล์ `.env`, token หรือ API key
 - หาก secret เคยถูก commit หรือแชร์ ให้ rotate ค่านั้นทันที
 - จำกัดสิทธิ์ของ Discord bot เท่าที่จำเป็น
+- ไฟล์ฐานข้อมูลและ runtime state ใน `data/` ถูก ignore จาก Git และฐานข้อมูลใหม่ถูกตั้ง permission เป็น `0600`
+- Query ของ SQLite ใช้ parameter binding และชื่อ field ที่แก้ไขได้ผ่าน allowlist
+- คำสั่งผู้ดูแลตรวจ permission ตอน runtime และ Admin Panel ผูกกับผู้เปิดหน้าต่างเท่านั้น
+- ข้อมูลจาก API ภายนอกไม่สามารถ Mention `@everyone` หรือ Role ได้โดยค่าเริ่มต้น
+- `/ask`, `/draw` และ AI Message Tools มี rate limit เพื่อลดการ abuse และค่า API
+- Symbol ตลาด, ราคา, เวลา, Timezone, ความยาวข้อความ และจำนวน Alert ถูก validate ก่อนบันทึก
+- `/bot-status` ไม่แสดง token, API key หรือรายละเอียด exception ภายใน

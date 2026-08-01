@@ -12,6 +12,12 @@ env/
 # Environment variables (Contains sensitive credentials like DISCORD_TOKEN and GEMINI_API_KEY)
 .env
 
+# Runtime state (may contain Discord user/channel IDs and reminder text)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.json
+
 # IDE / Editor folders
 .vscode/
 .idea/

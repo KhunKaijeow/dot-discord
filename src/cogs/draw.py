@@ -38,11 +38,16 @@ class DrawCog(commands.Cog):
 
     @app_commands.command(name="draw", description="สร้างรูปภาพด้วย AI จากคำอธิบาย (Prompt)")
     @app_commands.describe(prompt="รายละเอียดภาพที่ต้องการวาด (ภาษาอังกฤษจะประมวลผลได้ดีที่สุด)")
+    @app_commands.checks.cooldown(3, 60.0, key=lambda interaction: interaction.user.id)
     async def draw(self, interaction: discord.Interaction, prompt: str):
         # We don't defer because generating the URL is instant. The client (Discord) will load the image!
         # But sending an instant response is even better as it renders immediately while loading.
         
-        encoded_prompt = urllib.parse.quote(prompt.strip())
+        prompt = prompt.strip()
+        if not 1 <= len(prompt) <= 500:
+            await interaction.response.send_message("Prompt ต้องมีความยาว 1–500 ตัวอักษร", ephemeral=True)
+            return
+        encoded_prompt = urllib.parse.quote(prompt)
         seed = random.randint(1, 9999999)
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={seed}"
 

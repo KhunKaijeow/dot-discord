@@ -163,6 +163,7 @@ class XNotifierCog(commands.Cog):
     @app_commands.command(name="x-setup", description="ตั้งค่าช่องสำหรับรับแจ้งเตือนข่าวสารจาก sheapgamer")
     @app_commands.describe(channel="ห้องแชทที่ต้องการรับแจ้งเตือน")
     @app_commands.default_permissions(manage_channels=True)
+    @app_commands.checks.has_permissions(manage_channels=True)
     async def x_setup(self, interaction: discord.Interaction, channel: discord.TextChannel):
         self.channel_id = channel.id
         self.save_state()

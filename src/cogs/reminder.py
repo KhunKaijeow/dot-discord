@@ -1,100 +1,139 @@
-"""Reminder slash commands."""
+"""Persistent reminder commands and delivery worker."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timedelta, timezone
+import re
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import discord
-from discord.ext import commands
 from discord import app_commands
-import re
-import asyncio
+from discord.ext import commands, tasks
+
+
+DURATION_RE = re.compile(r"^(\d{1,6})([smhdw])$")
+UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+
+
+def parse_duration(value: str, *, minimum: int = 1, maximum: int = 31_536_000) -> int:
+    match = DURATION_RE.fullmatch(value.strip().lower())
+    if not match:
+        raise ValueError("Invalid duration")
+    seconds = int(match.group(1)) * UNIT_SECONDS[match.group(2)]
+    if not minimum <= seconds <= maximum:
+        raise ValueError("Duration outside allowed range")
+    return seconds
+
 
 class ReminderCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.database = bot.database
+        self.deliver_reminders.start()
 
-    @app_commands.command(name="remind", description="ตั้งเวลาแจ้งเตือนเหตุการณ์พร้อมข้อความ")
-    @app_commands.describe(
-        duration="ระยะเวลา เช่น 30s (30 วินาที), 10m (10 นาที), 2h (2 ชั่วโมง)",
-        message="ข้อความความเตือนความจำ"
-    )
-    async def remind(self, interaction: discord.Interaction, duration: str, message: str):
-        duration_clean = duration.strip().lower()
-        
-        # Parse time string using regex (e.g., 30s, 10m, 2h)
-        pattern = re.compile(r"^(\d+)([smh])$")
-        match = pattern.match(duration_clean)
-        
-        if not match:
-            embed = discord.Embed(
-                title="⏱️ ขอรูปแบบเวลาอีกนิดนะ",
-                description="ผมยังอ่านเวลานี้ไม่ออก ลองพิมพ์ตามตัวอย่างนี้ได้เลย:\n"
-                            "• `30s` = 30 วินาที\n"
-                            "• `10m` = 10 นาที\n"
-                            "• `1h` = 1 ชั่วโมง\n"
-                            "*(ลงท้ายด้วยตัวอักษร s, m หรือ h เท่านั้น)*",
-                color=0xe74c3c
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+    def cog_unload(self) -> None:
+        self.deliver_reminders.cancel()
+
+    async def _create(self, interaction: discord.Interaction, due_at: datetime,
+                      message: str, repeat_seconds: int | None = None) -> None:
+        if not interaction.guild or not interaction.channel_id:
+            await interaction.response.send_message("คำสั่งนี้ใช้ได้ภายใน Server เท่านั้น", ephemeral=True)
             return
-
-        value, unit = match.groups()
-        value = int(value)
-        
-        # Calculate time in seconds
-        seconds = 0
-        unit_display = ""
-        if unit == "s":
-            seconds = value
-            unit_display = f"{value} วินาที"
-        elif unit == "m":
-            seconds = value * 60
-            unit_display = f"{value} นาที"
-        elif unit == "h":
-            seconds = value * 3600
-            unit_display = f"{value} ชั่วโมง"
-
-        # Enforce maximum reminder time of 24 hours (86400 seconds)
-        max_seconds = 86400
-        if seconds > max_seconds:
-            embed = discord.Embed(
-                title="⏳ ตั้งเวลาไกลไปนิดหนึ่ง",
-                description="ตอนนี้ผมรับตั้งเตือนได้สูงสุด **24 ชั่วโมง (24h)** ลองลดเวลาลงหน่อยนะครับ",
-                color=0xe74c3c
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+        clean_message = message.strip()
+        if not 1 <= len(clean_message) <= 1000:
+            await interaction.response.send_message("ข้อความต้องมีความยาว 1–1,000 ตัวอักษร", ephemeral=True)
             return
-
-        if seconds <= 0:
-            embed = discord.Embed(
-                title="⏱️ เวลาต้องมากกว่า 0 นะ",
-                description="ลองตั้งเวลาอย่างน้อย 1 วินาที แล้วผมจะช่วยเตือนให้ครับ",
-                color=0xe74c3c
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-
-        # Confirm reminder registration
-        embed = discord.Embed(
-            description=f"⏰ ได้เลย! ผมจะกลับมาเตือนคุณในอีก **{unit_display}** นะครับ\n\n"
-                        f"📝 **บันทึกช่วยจำ:** >>> {message}",
-            color=0x3498db  # Material Blue
+        reminder_id = await asyncio.to_thread(
+            self.database.create_reminder, interaction.user.id, interaction.guild.id,
+            interaction.channel_id, clean_message, due_at, repeat_seconds,
         )
-        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-        embed.set_author(name="ตั้งเตือนให้แล้ว • Reminder", icon_url=avatar_url)
-        await interaction.response.send_message(embed=embed)
+        timestamp = int(due_at.timestamp())
+        repeat_text = f" • ซ้ำทุก {repeat_seconds:,} วินาที" if repeat_seconds else ""
+        await interaction.response.send_message(
+            embed=discord.Embed(
+                title="⏰ ตั้งเตือนเรียบร้อย",
+                description=f"ID `{reminder_id}` • <t:{timestamp}:F> (<t:{timestamp}:R>){repeat_text}\n\n{clean_message}",
+                color=0x3498DB,
+            ), ephemeral=True,
+        )
 
-        # Wait non-blockingly
-        await asyncio.sleep(seconds)
-
-        # Trigger notification
+    @app_commands.command(name="remind", description="ตั้งเวลาเตือนแบบถาวร เช่น 30m, 2h, 7d")
+    async def remind(self, interaction: discord.Interaction, duration: str, message: str):
         try:
-            # We ping the user who set the reminder
-            reminder_embed = discord.Embed(
-                description=f"📢 **ถึงเวลาที่ให้ผมเตือนแล้วนะ!**\n\n>>> {message}",
-                color=0xe67e22  # Orange Alert
-            )
-            reminder_embed.set_author(name="Javis แวะมาเตือนแล้ว 🔔", icon_url=avatar_url)
-            await interaction.channel.send(content=interaction.user.mention, embed=reminder_embed)
-        except Exception as e:
-            print(f"Error sending reminder: {e}")
+            seconds = parse_duration(duration)
+        except ValueError:
+            await interaction.response.send_message("รูปแบบเวลาไม่ถูกต้อง ใช้ `30s`, `10m`, `2h`, `7d` หรือ `2w`", ephemeral=True)
+            return
+        await self._create(interaction, datetime.now(timezone.utc) + timedelta(seconds=seconds), message)
+
+    @app_commands.command(name="remind-at", description="ตั้งเตือนตามวันเวลาใน Timezone ของ Server")
+    @app_commands.describe(when="รูปแบบ YYYY-MM-DD HH:MM", message="ข้อความแจ้งเตือน")
+    async def remind_at(self, interaction: discord.Interaction, when: str, message: str):
+        if not interaction.guild:
+            await interaction.response.send_message("คำสั่งนี้ใช้ได้ภายใน Server เท่านั้น", ephemeral=True)
+            return
+        settings = await asyncio.to_thread(self.database.get_settings, interaction.guild.id)
+        try:
+            zone = ZoneInfo(settings["timezone"])
+            due_at = datetime.strptime(when.strip(), "%Y-%m-%d %H:%M").replace(tzinfo=zone).astimezone(timezone.utc)
+            if due_at <= datetime.now(timezone.utc):
+                raise ValueError
+        except (ValueError, ZoneInfoNotFoundError):
+            await interaction.response.send_message("วันเวลาไม่ถูกต้องหรือผ่านไปแล้ว ใช้รูปแบบ `YYYY-MM-DD HH:MM`", ephemeral=True)
+            return
+        await self._create(interaction, due_at, message)
+
+    @app_commands.command(name="remind-every", description="ตั้งการแจ้งเตือนซ้ำแบบถาวร")
+    async def remind_every(self, interaction: discord.Interaction, interval: str, message: str):
+        try:
+            seconds = parse_duration(interval, minimum=60)
+        except ValueError:
+            await interaction.response.send_message("รอบแจ้งเตือนต้องอยู่ระหว่าง 1 นาทีถึง 1 ปี", ephemeral=True)
+            return
+        await self._create(interaction, datetime.now(timezone.utc) + timedelta(seconds=seconds), message, seconds)
+
+    @app_commands.command(name="reminders", description="ดูรายการแจ้งเตือนของคุณ")
+    async def reminders(self, interaction: discord.Interaction):
+        if not interaction.guild:
+            return
+        rows = await asyncio.to_thread(self.database.list_reminders, interaction.user.id, interaction.guild.id)
+        text = "\n".join(
+            f"`#{row['id']}` <t:{int(datetime.fromisoformat(row['due_at']).timestamp())}:R> — {row['message'][:80]}"
+            for row in rows
+        ) or "ยังไม่มีรายการแจ้งเตือน"
+        await interaction.response.send_message(embed=discord.Embed(title="⏰ Reminder ของคุณ", description=text, color=0x3498DB), ephemeral=True)
+
+    @app_commands.command(name="reminder-cancel", description="ยกเลิก Reminder ด้วย ID")
+    async def reminder_cancel(self, interaction: discord.Interaction, reminder_id: int):
+        deleted = await asyncio.to_thread(self.database.delete_reminder, reminder_id, interaction.user.id)
+        await interaction.response.send_message("✅ ยกเลิกแล้ว" if deleted else "ไม่พบ Reminder นี้หรือไม่ใช่ของคุณ", ephemeral=True)
+
+    @tasks.loop(seconds=15)
+    async def deliver_reminders(self):
+        rows = await asyncio.to_thread(self.database.due_reminders, datetime.now(timezone.utc))
+        for row in rows:
+            channel = self.bot.get_channel(row["channel_id"])
+            if channel is None:
+                continue
+            try:
+                user = self.bot.get_user(row["user_id"])
+                mention = user.mention if user else f"<@{row['user_id']}>"
+                await channel.send(
+                    content=mention,
+                    embed=discord.Embed(title="🔔 ถึงเวลาแล้ว", description=row["message"], color=0xE67E22),
+                    allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
+                )
+            except (discord.Forbidden, discord.HTTPException):
+                continue
+            repeat = row["repeat_seconds"]
+            next_due = datetime.now(timezone.utc) + timedelta(seconds=repeat) if repeat else None
+            await asyncio.to_thread(self.database.finish_reminder, row["id"], repeat, next_due)
+
+    @deliver_reminders.before_loop
+    async def before_delivery(self):
+        await self.bot.wait_until_ready()
+
 
 async def setup(bot):
     await bot.add_cog(ReminderCog(bot))

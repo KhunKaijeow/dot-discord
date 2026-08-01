@@ -1,0 +1,137 @@
+"""Per-guild scheduled morning digest built from the existing dashboard."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime
+from urllib.parse import quote
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+import aiohttp
+import discord
+from discord import app_commands
+from discord.ext import commands, tasks
+
+
+class MorningDigestCog(commands.Cog):
+    digest = app_commands.Group(name="digest", description="จัดการ Morning Digest")
+
+    def __init__(self, bot):
+        self.bot = bot
+        self.database = bot.database
+        self.digest_worker.start()
+
+    def cog_unload(self):
+        self.digest_worker.cancel()
+
+    async def _build(self, city: str = "Bangkok") -> discord.Embed:
+        dashboard = self.bot.get_cog("DashboardCog")
+        if dashboard is None:
+            raise RuntimeError("Dashboard is unavailable")
+        embed = await dashboard.build_dashboard_embed()
+        embed.title = "☀️ Morning Digest"
+        timeout = aiohttp.ClientTimeout(total=12)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(f"https://wttr.in/{quote(city, safe='')}?format=j1&lang=th") as response:
+                    payload = await response.json(content_type=None) if response.status == 200 else {}
+            current = payload.get("current_condition", [{}])[0]
+            if current:
+                embed.add_field(
+                    name=f"🌤️ อากาศ • {city}",
+                    value=f"`{current.get('temp_C', 'N/A')}°C` • ความชื้น `{current.get('humidity', 'N/A')}%` • ลม `{current.get('windspeedKmph', 'N/A')} km/h`",
+                    inline=False,
+                )
+        except (aiohttp.ClientError, TimeoutError, ValueError, IndexError):
+            pass
+        return embed
+
+    @digest.command(name="setup", description="ตั้งห้องและเวลาส่ง Morning Digest")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup_digest(self, interaction: discord.Interaction, channel: discord.TextChannel,
+                           hour: app_commands.Range[int, 0, 23] = 8,
+                           minute: app_commands.Range[int, 0, 59] = 0,
+                           timezone_name: str = "Asia/Bangkok", city: str = "Bangkok"):
+        if not interaction.guild or not interaction.permissions.manage_guild:
+            await interaction.response.send_message("คำสั่งนี้สำหรับผู้ดูแล Server เท่านั้น", ephemeral=True)
+            return
+        try:
+            ZoneInfo(timezone_name.strip())
+        except (ZoneInfoNotFoundError, ValueError):
+            await interaction.response.send_message("Timezone ไม่ถูกต้อง เช่น `Asia/Bangkok`", ephemeral=True)
+            return
+        city = city.strip()
+        if not 1 <= len(city) <= 80 or any(char in city for char in "\r\n<>"):
+            await interaction.response.send_message("ชื่อเมืองไม่ถูกต้อง", ephemeral=True)
+            return
+        await asyncio.to_thread(
+            self.database.update_settings, interaction.guild.id,
+            digest_enabled=1, digest_channel_id=channel.id, digest_hour=hour,
+            digest_minute=minute, timezone=timezone_name.strip(), digest_city=city,
+            last_digest_date=None,
+        )
+        await interaction.response.send_message(
+            f"✅ Morning Digest จะส่งที่ {channel.mention} เวลา `{hour:02d}:{minute:02d}` ({timezone_name})",
+            ephemeral=True,
+        )
+
+    @digest.command(name="preview", description="ดูตัวอย่าง Morning Digest")
+    async def preview(self, interaction: discord.Interaction):
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        try:
+            city = "Bangkok"
+            if interaction.guild:
+                city = (await asyncio.to_thread(self.database.get_settings, interaction.guild.id))["digest_city"]
+            await interaction.followup.send(embed=await self._build(city), ephemeral=True)
+        except Exception:
+            await interaction.followup.send("สร้าง Digest ไม่สำเร็จในขณะนี้", ephemeral=True)
+
+    @digest.command(name="disable", description="ปิด Morning Digest")
+    @app_commands.default_permissions(manage_guild=True)
+    async def disable(self, interaction: discord.Interaction):
+        if not interaction.guild or not interaction.permissions.manage_guild:
+            await interaction.response.send_message("คำสั่งนี้สำหรับผู้ดูแล Server เท่านั้น", ephemeral=True)
+            return
+        await asyncio.to_thread(self.database.update_settings, interaction.guild.id, digest_enabled=0)
+        await interaction.response.send_message("✅ ปิด Morning Digest แล้ว", ephemeral=True)
+
+    @digest.command(name="status", description="ดูการตั้งค่า Morning Digest")
+    async def status(self, interaction: discord.Interaction):
+        if not interaction.guild:
+            return
+        row = await asyncio.to_thread(self.database.get_settings, interaction.guild.id)
+        channel = self.bot.get_channel(row["digest_channel_id"]) if row["digest_channel_id"] else None
+        text = (
+            f"สถานะ: **{'เปิด' if row['digest_enabled'] else 'ปิด'}**\n"
+            f"เวลา: `{row['digest_hour']:02d}:{row['digest_minute']:02d}` ({row['timezone']})\n"
+            f"ห้อง: {channel.mention if channel else 'ยังไม่ตั้งค่า'}\nเมือง: `{row['digest_city']}`"
+        )
+        await interaction.response.send_message(embed=discord.Embed(title="☀️ Morning Digest", description=text), ephemeral=True)
+
+    @tasks.loop(minutes=1)
+    async def digest_worker(self):
+        settings = await asyncio.to_thread(self.database.all_digest_settings)
+        for row in settings:
+            try:
+                now = datetime.now(ZoneInfo(row["timezone"]))
+            except (ZoneInfoNotFoundError, ValueError):
+                continue
+            today = now.date().isoformat()
+            if now.hour != row["digest_hour"] or now.minute < row["digest_minute"] or row["last_digest_date"] == today:
+                continue
+            channel = self.bot.get_channel(row["digest_channel_id"])
+            if channel is None:
+                continue
+            try:
+                await channel.send(embed=await self._build(row["digest_city"]))
+            except (discord.Forbidden, discord.HTTPException, RuntimeError):
+                continue
+            await asyncio.to_thread(self.database.update_settings, row["guild_id"], last_digest_date=today)
+
+    @digest_worker.before_loop
+    async def before_digest(self):
+        await self.bot.wait_until_ready()
+
+
+async def setup(bot):
+    await bot.add_cog(MorningDigestCog(bot))
