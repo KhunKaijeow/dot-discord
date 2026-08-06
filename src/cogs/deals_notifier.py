@@ -13,7 +13,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from ..ui import EmbedColor, make_embed
+from ..ui import EmbedColor, make_embed, make_notice_embed
 
 
 logger = logging.getLogger("discord.deals_notifier")
@@ -233,9 +233,19 @@ class DealsNotifierCog(commands.Cog):
         await interaction.response.defer(thinking=True)
         items = await self.fetch_active_giveaways()
         if not items:
-            await interaction.followup.send("🎁 ตอนนี้ยังไม่มีเกมแจกฟรี เดี๋ยวมีแล้วผมบอกนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Free Games",
+                    "🎁 ตอนนี้ยังไม่มีเกมแจกฟรี เดี๋ยวมีแล้วผมบอกนะ",
+                )
+            )
             return
-        await interaction.followup.send("🎁 **เจอเกมฟรีล่าสุดมาให้แล้ว:**")
+        await interaction.followup.send(
+            embed=make_notice_embed(
+                self.bot, "Free Games", "🎁 **เจอเกมฟรีล่าสุดมาให้แล้ว:**",
+                color=EmbedColor.SUCCESS,
+            )
+        )
         for item in items[:3]:
             await interaction.channel.send(embed=self.create_giveaway_embed(item))
 

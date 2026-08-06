@@ -16,7 +16,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 import yfinance as yf
 
-from ..ui import EmbedColor, make_embed, set_embed_author
+from ..ui import EmbedColor, make_embed, make_notice_embed, set_embed_author
 
 
 logger = logging.getLogger("discord.dashboard")
@@ -252,7 +252,12 @@ class DashboardCog(commands.Cog):
         try:
             message = await channel.fetch_message(settings["dashboard_message_id"])
             await message.edit(embed=embed)
-            await interaction.followup.send("✅ อัปเดตบอร์ดให้สดใหม่แล้วนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Daily Dashboard", "✅ อัปเดตบอร์ดให้สดใหม่แล้วนะ",
+                    color=EmbedColor.SUCCESS,
+                )
+            )
         except discord.NotFound:
             message = await channel.send(embed=embed)
             await asyncio.to_thread(
@@ -260,10 +265,22 @@ class DashboardCog(commands.Cog):
                 interaction.guild.id,
                 dashboard_message_id=message.id,
             )
-            await interaction.followup.send("หาโพสต์เดิมไม่เจอ เลยสร้างบอร์ดใหม่ให้แล้วนะ ✨")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Daily Dashboard",
+                    "หาโพสต์เดิมไม่เจอ เลยสร้างบอร์ดใหม่ให้แล้วนะ ✨",
+                    color=EmbedColor.SUCCESS,
+                )
+            )
         except (discord.Forbidden, discord.HTTPException):
             logger.exception("Could not manually update dashboard for guild %s", interaction.guild.id)
-            await interaction.followup.send("😅 บอร์ดสะดุดนิดหน่อย ลองอัปเดตใหม่อีกทีนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Daily Dashboard",
+                    "😅 บอร์ดสะดุดนิดหน่อย ลองอัปเดตใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
+                )
+            )
 
     @app_commands.command(name="dashboard-disable", description="ปิด Daily Dashboard ของ Server นี้")
     @app_commands.guild_only()

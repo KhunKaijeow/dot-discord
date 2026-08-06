@@ -10,7 +10,7 @@ from discord.ext import commands
 
 from ..config import TOGETHER_API_KEY
 from ..services.http_client import HttpClient
-from ..ui import EmbedColor, set_embed_author
+from ..ui import EmbedColor, make_notice_embed, set_embed_author
 
 
 logger = logging.getLogger(__name__)
@@ -147,7 +147,13 @@ class DrawCog(commands.Cog):
             await interaction.followup.send(embed=embed, file=file, view=view)
         except Exception:
             logger.exception("Error generating image")
-            await interaction.followup.send("😅 รอบนี้สร้างภาพไม่สำเร็จ ลองใหม่อีกทีนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Image Studio",
+                    "😅 รอบนี้สร้างภาพไม่สำเร็จ ลองใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
+                )
+            )
 
 
 async def setup(bot):

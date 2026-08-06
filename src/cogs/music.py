@@ -13,7 +13,7 @@ from urllib.parse import urlparse, parse_qs
 from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 from ..services.http_client import HttpClient
 from ..services.music_queue import MusicQueue, QueueFullError
-from ..ui import EmbedColor, make_embed, set_embed_author
+from ..ui import EmbedColor, make_embed, make_notice_embed, set_embed_author
 
 import aiohttp
 import discord
@@ -497,7 +497,12 @@ class GuildMusicState:
                 self.guild_id,
                 error,
             )
-            await loading_message.edit(content=f"😅 {error}")
+            await loading_message.edit(
+                content=None,
+                embed=make_notice_embed(
+                    self.bot, "Music", f"😅 {error}", color=EmbedColor.ERROR,
+                ),
+            )
             return False
         except Exception:
             logger.exception(
@@ -505,7 +510,13 @@ class GuildMusicState:
                 self.guild_id,
             )
             await loading_message.edit(
-                content="😅 เตรียมเพลงไม่สำเร็จ ลองเลือกเพลงอื่นอีกทีนะ"
+                content=None,
+                embed=make_notice_embed(
+                    self.bot,
+                    "Music",
+                    "😅 เตรียมเพลงไม่สำเร็จ ลองเลือกเพลงอื่นอีกทีนะ",
+                    color=EmbedColor.ERROR,
+                ),
             )
             return False
 
@@ -633,7 +644,12 @@ class MusicControlView(discord.ui.View):
             )
             return
         voice.pause()
-        await interaction.response.send_message("⏸️ พักเพลงให้แล้วนะ")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", "⏸️ พักเพลงให้แล้วนะ",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @discord.ui.button(
         label="Resume",
@@ -656,7 +672,12 @@ class MusicControlView(discord.ui.View):
             )
             return
         voice.resume()
-        await interaction.response.send_message("▶️ เล่นต่อให้แล้ว ไปฟังกันเลย")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", "▶️ เล่นต่อให้แล้ว ไปฟังกันเลย",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @discord.ui.button(label="Skip", emoji="⏭️")
     async def skip(
@@ -675,7 +696,12 @@ class MusicControlView(discord.ui.View):
             )
             return
         get_state(self.bot, self.guild_id).skip()
-        await interaction.response.send_message("⏭️ ข้ามเพลงให้แล้วนะ")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", "⏭️ ข้ามเพลงให้แล้วนะ",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @discord.ui.button(
         label="Stop",
@@ -693,7 +719,11 @@ class MusicControlView(discord.ui.View):
         state = get_state(self.bot, self.guild_id)
         await state.stop()
         await interaction.response.send_message(
-            "👋 หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะ"
+            embed=make_notice_embed(
+                self.bot, "Music",
+                "👋 หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะ",
+                color=EmbedColor.SUCCESS,
+            )
         )
 
 
@@ -814,7 +844,12 @@ class MusicCog(commands.Cog):
             )
             return
         get_state(self.bot, interaction.guild.id).skip()
-        await interaction.response.send_message("⏭️ ข้ามเพลงให้แล้วนะ")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", "⏭️ ข้ามเพลงให้แล้วนะ",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @app_commands.command(name="pause", description="พักเพลงชั่วคราว")
     async def pause(self, interaction: discord.Interaction) -> None:
@@ -829,7 +864,12 @@ class MusicCog(commands.Cog):
             )
             return
         voice.pause()
-        await interaction.response.send_message("⏸️ พักเพลงให้แล้วนะ")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", "⏸️ พักเพลงให้แล้วนะ",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @app_commands.command(name="resume", description="เล่นเพลงที่พักไว้ต่อ")
     async def resume(self, interaction: discord.Interaction) -> None:
@@ -844,7 +884,12 @@ class MusicCog(commands.Cog):
             )
             return
         voice.resume()
-        await interaction.response.send_message("▶️ เล่นต่อให้แล้ว ไปฟังกันเลย")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", "▶️ เล่นต่อให้แล้ว ไปฟังกันเลย",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @app_commands.command(name="queue", description="แสดงคิวเพลงปัจจุบัน")
     async def queue_command(self, interaction: discord.Interaction) -> None:
@@ -927,7 +972,12 @@ class MusicCog(commands.Cog):
         voice = interaction.guild.voice_client
         if voice and isinstance(voice.source, discord.PCMVolumeTransformer):
             voice.source.volume = state.volume
-        await interaction.response.send_message(f"🔊 ตั้งระดับเสียงเป็น `{percent}%` แล้ว")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", f"🔊 ตั้งระดับเสียงเป็น `{percent}%` แล้ว",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @app_commands.command(name="loop", description="ตั้งโหมดเล่นซ้ำ")
     @app_commands.choices(mode=[
@@ -942,7 +992,12 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
             return
         get_state(self.bot, interaction.guild.id).loop_mode = mode
-        await interaction.response.send_message(f"🔁 ตั้ง Loop เป็น `{mode}` แล้ว")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", f"🔁 ตั้ง Loop เป็น `{mode}` แล้ว",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @app_commands.command(name="shuffle", description="สุ่มลำดับเพลงในคิว")
     async def shuffle(self, interaction: discord.Interaction) -> None:
@@ -953,7 +1008,12 @@ class MusicCog(commands.Cog):
             return
         state = get_state(self.bot, interaction.guild.id)
         state.queue.shuffle()
-        await interaction.response.send_message(f"🔀 สุ่มคิว `{len(state.queue)}` เพลงแล้ว")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", f"🔀 สุ่มคิว `{len(state.queue)}` เพลงแล้ว",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @app_commands.command(name="remove", description="นำเพลงออกจากคิวตามลำดับ")
     async def remove(
@@ -971,7 +1031,12 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("ไม่พบลำดับเพลงนี้", ephemeral=True)
             return
         removed = state.queue.remove(position)
-        await interaction.response.send_message(f"🗑️ นำ **{removed.title}** ออกจากคิวแล้ว")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", f"🗑️ นำ **{removed.title}** ออกจากคิวแล้ว",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @app_commands.command(name="clear-queue", description="ล้างเพลงที่รอทั้งหมดโดยไม่หยุดเพลงปัจจุบัน")
     async def clear_queue(self, interaction: discord.Interaction) -> None:
@@ -982,7 +1047,12 @@ class MusicCog(commands.Cog):
             return
         state = get_state(self.bot, interaction.guild.id)
         count = state.queue.clear()
-        await interaction.response.send_message(f"🧹 ล้างคิว `{count}` เพลงแล้ว")
+        await interaction.response.send_message(
+            embed=make_notice_embed(
+                self.bot, "Music", f"🧹 ล้างคิว `{count}` เพลงแล้ว",
+                color=EmbedColor.SUCCESS,
+            )
+        )
 
     @app_commands.command(
         name="stop",
@@ -1000,7 +1070,11 @@ class MusicCog(commands.Cog):
             return
         await get_state(self.bot, interaction.guild.id).stop()
         await interaction.response.send_message(
-            "👋 หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะ"
+            embed=make_notice_embed(
+                self.bot, "Music",
+                "👋 หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะ",
+                color=EmbedColor.SUCCESS,
+            )
         )
 
     @app_commands.command(name="playlist-save", description="บันทึกเพลงในคิวปัจจุบันเป็นเพลย์ลิสต์ส่วนตัว")
@@ -1039,7 +1113,13 @@ class MusicCog(commands.Cog):
             is_overwrite = any(p["name"].lower() == name.lower() for p in existing_playlists)
             
             if playlist_count >= 10 and not is_overwrite:
-                await interaction.followup.send("เก็บครบ 10 เพลย์ลิสต์แล้ว ลบอันเก่าสักรายการก่อนนะ")
+                await interaction.followup.send(
+                    embed=make_notice_embed(
+                        self.bot, "Music • Playlist",
+                        "เก็บครบ 10 เพลย์ลิสต์แล้ว ลบอันเก่าสักรายการก่อนนะ",
+                        color=EmbedColor.WARNING,
+                    )
+                )
                 return
 
             track_tuples = [(t.title, t.youtube_url, t.requested_via) for t in tracks_to_save]
@@ -1061,7 +1141,13 @@ class MusicCog(commands.Cog):
             
         except Exception as e:
             logger.exception("Error saving playlist")
-            await interaction.followup.send("😅 เก็บเพลย์ลิสต์ไม่สำเร็จ ลองใหม่อีกทีนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Music • Playlist",
+                    "😅 เก็บเพลย์ลิสต์ไม่สำเร็จ ลองใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
+                )
+            )
 
     @app_commands.command(name="playlist-load", description="โหลดเพลงจากเพลย์ลิสต์ส่วนตัวเข้าสู่คิว")
     @app_commands.describe(name="ชื่อเพลย์ลิสต์ที่บันทึกไว้")
@@ -1084,7 +1170,13 @@ class MusicCog(commands.Cog):
             db_tracks = await asyncio.to_thread(self.bot.database.load_playlist, user_id, name)
             
             if not db_tracks:
-                await interaction.followup.send(f"หาเพลย์ลิสต์ `{name}` ไม่เจอ ลองเช็กชื่ออีกทีนะ")
+                await interaction.followup.send(
+                    embed=make_notice_embed(
+                        self.bot, "Music • Playlist",
+                        f"หาเพลย์ลิสต์ `{name}` ไม่เจอ ลองเช็กชื่ออีกทีนะ",
+                        color=EmbedColor.WARNING,
+                    )
+                )
                 return
 
             state = get_state(self.bot, interaction.guild.id)
@@ -1092,7 +1184,12 @@ class MusicCog(commands.Cog):
                 state.ensure_capacity(len(db_tracks))
             except QueueFullError as error:
                 await interaction.followup.send(
-                    f"คิวรับเพิ่มได้อีก `{error.available}` เพลง แต่เพลย์ลิสต์นี้มี `{error.requested}` เพลงนะ"
+                    embed=make_notice_embed(
+                        self.bot, "Music • Playlist",
+                        f"คิวรับเพิ่มได้อีก `{error.available}` เพลง "
+                        f"แต่เพลย์ลิสต์นี้มี `{error.requested}` เพลงนะ",
+                        color=EmbedColor.WARNING,
+                    )
                 )
                 return
 
@@ -1102,7 +1199,13 @@ class MusicCog(commands.Cog):
             if voice_client and voice_client.channel != voice_channel and (
                 voice_client.is_playing() or voice_client.is_paused()
             ):
-                await interaction.followup.send("ตอนนี้ผมเปิดเพลงอยู่อีกห้องนึงนะ")
+                await interaction.followup.send(
+                    embed=make_notice_embed(
+                        self.bot, "Music • Playlist",
+                        "ตอนนี้ผมเปิดเพลงอยู่อีกห้องนึงนะ",
+                        color=EmbedColor.WARNING,
+                    )
+                )
                 return
 
             try:
@@ -1112,7 +1215,13 @@ class MusicCog(commands.Cog):
                     await voice_client.move_to(voice_channel)
             except discord.DiscordException:
                 logger.exception("Could not connect to voice channel")
-                await interaction.followup.send("🎧 เข้าห้องเสียงไม่สำเร็จ ลองเช็กสิทธิ์ Connect/Speak ให้หน่อยนะ")
+                await interaction.followup.send(
+                    embed=make_notice_embed(
+                        self.bot, "Music • Playlist",
+                        "🎧 เข้าห้องเสียงไม่สำเร็จ ลองเช็กสิทธิ์ Connect/Speak ให้หน่อยนะ",
+                        color=EmbedColor.ERROR,
+                    )
+                )
                 return
 
             tracks = []
@@ -1129,7 +1238,12 @@ class MusicCog(commands.Cog):
                 await state.enqueue_many(tracks, voice_client, interaction.channel)
             except QueueFullError as error:
                 await interaction.followup.send(
-                    f"คิวรับเพิ่มได้อีก `{error.available}` เพลง แต่เพลย์ลิสต์นี้มี `{error.requested}` เพลงนะ"
+                    embed=make_notice_embed(
+                        self.bot, "Music • Playlist",
+                        f"คิวรับเพิ่มได้อีก `{error.available}` เพลง "
+                        f"แต่เพลย์ลิสต์นี้มี `{error.requested}` เพลงนะ",
+                        color=EmbedColor.WARNING,
+                    )
                 )
                 return
 
@@ -1144,7 +1258,13 @@ class MusicCog(commands.Cog):
 
         except Exception as e:
             logger.exception("Error loading playlist")
-            await interaction.followup.send("😅 โหลดเพลย์ลิสต์สะดุดนิดหน่อย ลองใหม่อีกทีนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Music • Playlist",
+                    "😅 โหลดเพลย์ลิสต์สะดุดนิดหน่อย ลองใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
+                )
+            )
 
     @app_commands.command(name="playlist-list", description="แสดงรายชื่อเพลย์ลิสต์ส่วนตัวทั้งหมดของคุณ")
     async def playlist_list(self, interaction: discord.Interaction) -> None:
@@ -1193,7 +1313,13 @@ class MusicCog(commands.Cog):
             
         except Exception as e:
             logger.exception("Error listing playlists")
-            await interaction.followup.send("😅 เปิดรายการเพลย์ลิสต์ไม่สำเร็จ ลองใหม่อีกทีนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Music • Playlist",
+                    "😅 เปิดรายการเพลย์ลิสต์ไม่สำเร็จ ลองใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
+                )
+            )
 
     @app_commands.command(name="playlist-delete", description="ลบเพลย์ลิสต์ส่วนตัวของคุณ")
     @app_commands.describe(name="ชื่อเพลย์ลิสต์ที่ต้องการลบ")
@@ -1214,11 +1340,23 @@ class MusicCog(commands.Cog):
                 )
                 await interaction.followup.send(embed=embed)
             else:
-                await interaction.followup.send(f"หาเพลย์ลิสต์ `{name}` ไม่เจอ ลองเช็กชื่ออีกทีนะ")
+                await interaction.followup.send(
+                    embed=make_notice_embed(
+                        self.bot, "Music • Playlist",
+                        f"หาเพลย์ลิสต์ `{name}` ไม่เจอ ลองเช็กชื่ออีกทีนะ",
+                        color=EmbedColor.WARNING,
+                    )
+                )
                 
         except Exception as e:
             logger.exception("Error deleting playlist")
-            await interaction.followup.send("😅 ลบเพลย์ลิสต์ไม่สำเร็จ ลองใหม่อีกทีนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Music • Playlist",
+                    "😅 ลบเพลย์ลิสต์ไม่สำเร็จ ลองใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
+                )
+            )
 
 
 def load_opus() -> None:

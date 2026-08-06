@@ -9,7 +9,7 @@ import pandas as pd
 import yfinance as yf
 
 from ..services.chart_generator import generate_price_chart
-from ..ui import EmbedColor, set_embed_author
+from ..ui import EmbedColor, make_notice_embed, set_embed_author
 
 
 logger = logging.getLogger("javis.gold")
@@ -109,7 +109,13 @@ class GoldCog(commands.Cog):
 
         except Exception:
             logger.exception("Could not fetch gold price")
-            await interaction.followup.send("😅 ราคาทองยังมาไม่ถึง รอสักครู่แล้วลองใหม่อีกทีนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Gold",
+                    "😅 ราคาทองยังมาไม่ถึง รอสักครู่แล้วลองใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
+                )
+            )
 
     @app_commands.command(name="gold-analysis", description="วิเคราะห์จุดซื้อขายทองทางเทคนิคอล (Pivot Points, RSI, EMA)")
     async def gold_analysis(self, interaction: discord.Interaction):
@@ -118,7 +124,13 @@ class GoldCog(commands.Cog):
             info, hist = await asyncio.to_thread(fetch_gold_data)
             
             if hist.empty or len(hist) < 2:
-                await interaction.followup.send("😅 ข้อมูลยังไม่พอให้วิเคราะห์ รอข้อมูลตลาดเพิ่มอีกนิดนะ")
+                await interaction.followup.send(
+                    embed=make_notice_embed(
+                        self.bot, "Gold • Technical View",
+                        "😅 ข้อมูลยังไม่พอให้วิเคราะห์ รอข้อมูลตลาดเพิ่มอีกนิดนะ",
+                        color=EmbedColor.WARNING,
+                    )
+                )
                 return
 
             current_price = info.get("currentPrice") or info.get("regularMarketPrice") or hist['Close'].iloc[-1]
@@ -216,7 +228,13 @@ class GoldCog(commands.Cog):
 
         except Exception:
             logger.exception("Could not calculate gold analysis")
-            await interaction.followup.send("😅 รอบนี้วิเคราะห์ไม่สำเร็จ รอสักครู่แล้วลองใหม่อีกทีนะ")
+            await interaction.followup.send(
+                embed=make_notice_embed(
+                    self.bot, "Gold • Technical View",
+                    "😅 รอบนี้วิเคราะห์ไม่สำเร็จ รอสักครู่แล้วลองใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
+                )
+            )
 
 async def setup(bot):
     await bot.add_cog(GoldCog(bot))

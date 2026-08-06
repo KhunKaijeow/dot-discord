@@ -14,7 +14,7 @@ from src.cogs.reminder import parse_duration
 from src.services.database import Database
 from src.services.market_data import normalize_symbol
 from src.services.typhoon import TyphoonService
-from src.ui import EmbedColor, make_embed
+from src.ui import EmbedColor, make_embed, make_notice_embed
 
 
 class DatabaseTests(unittest.TestCase):
@@ -202,6 +202,21 @@ class ValidationTests(unittest.TestCase):
 
         self.assertEqual(embed.author.name, "Javis • Test")
         self.assertIsNone(embed.footer.text)
+
+    def test_notice_embed_uses_shared_style_and_requested_color(self):
+        bot = MagicMock()
+        bot.user.display_avatar.url = "https://example.com/avatar.png"
+
+        embed = make_notice_embed(
+            bot,
+            "Music",
+            "เรียบร้อยแล้ว",
+            color=EmbedColor.SUCCESS,
+        )
+
+        self.assertEqual(embed.author.name, "Javis • Music")
+        self.assertEqual(embed.description, "เรียบร้อยแล้ว")
+        self.assertEqual(embed.color.value, EmbedColor.SUCCESS)
 
     def test_typhoon_response_extraction(self):
         payload = {"choices": [{"message": {"content": "  สวัสดีครับ  "}}]}

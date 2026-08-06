@@ -49,7 +49,7 @@ circular import
 | Music | `cogs/music.py`, `services/music_queue.py` | yt-dlp, FFmpeg/Opus, Spotify resolution, bounded queue และ Saved Playlists |
 | Market | `cogs/stock.py`, `crypto.py`, `gold.py`, `price_alerts.py` | Yahoo Finance, Binance, กราฟ 30 วัน และ Price Alerts |
 | Content | `news.py`, `translator.py`, `draw.py` | Google News RSS, Google Translate และ Together AI FLUX.1 |
-| Utility | `weather.py`, `valorant.py`, `horoscope.py`, `privacy.py` | wttr.in, HenrikDev, Prokerala, Wikimedia และคำสั่งจัดการข้อมูลส่วนตัว |
+| Utility | `help.py`, `weather.py`, `valorant.py`, `horoscope.py`, `privacy.py` | เมนูคำสั่งแบบ Interactive, wttr.in, HenrikDev, Prokerala, Wikimedia และคำสั่งจัดการข้อมูลส่วนตัว |
 | Automation | `reminder.py`, `dashboard.py`, `morning_digest.py`, `x_notifier.py`, `deals_notifier.py` | งานตามเวลาและการแจ้งเตือนอัตโนมัติ |
 | Administration | `admin.py`, `health.py`, `setup_check.py` | การตั้งค่าระดับ Server, deployment diagnostics และข้อมูลสุขภาพของ bot |
 

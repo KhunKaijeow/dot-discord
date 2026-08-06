@@ -41,3 +41,14 @@ def make_embed(
         **kwargs,
     )
     return set_embed_author(embed, bot, section)
+
+
+def make_notice_embed(
+    bot,
+    section: str,
+    message: str,
+    *,
+    color: int = EmbedColor.INFO,
+) -> discord.Embed:
+    """Create a compact embed for a short public status or error message."""
+    return make_embed(bot, section, description=message, color=color)
