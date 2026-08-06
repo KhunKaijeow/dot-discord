@@ -38,6 +38,44 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.database.update_settings(1, malicious_column="value")
 
+    def test_playlist_crud_and_limits(self):
+        user_id = 42
+        tracks = [
+            ("Track 1", "https://youtube.com/watch?v=1", "YouTube"),
+            ("Track 2", "https://youtube.com/watch?v=2", "Spotify → YouTube")
+        ]
+        
+        # Test saving
+        self.database.save_playlist(user_id, "my_list", tracks)
+        self.assertEqual(self.database.count_user_playlists(user_id), 1)
+        
+        # Test loading
+        loaded_tracks = self.database.load_playlist(user_id, "my_list")
+        self.assertEqual(len(loaded_tracks), 2)
+        self.assertEqual(loaded_tracks[0]["title"], "Track 1")
+        self.assertEqual(loaded_tracks[1]["title"], "Track 2")
+        self.assertEqual(loaded_tracks[0]["requested_via"], "YouTube")
+        
+        # Test listing
+        playlists = self.database.list_playlists(user_id)
+        self.assertEqual(len(playlists), 1)
+        self.assertEqual(playlists[0]["name"], "my_list")
+        self.assertEqual(playlists[0]["track_count"], 2)
+        
+        # Test saving overrides (overwriting playlist)
+        new_tracks = [("Track 3", "https://youtube.com/watch?v=3", "YouTube")]
+        self.database.save_playlist(user_id, "my_list", new_tracks)
+        self.assertEqual(self.database.count_user_playlists(user_id), 1) # count remains 1
+        loaded_tracks = self.database.load_playlist(user_id, "my_list")
+        self.assertEqual(len(loaded_tracks), 1) # now only 1 track
+        self.assertEqual(loaded_tracks[0]["title"], "Track 3")
+        
+        # Test deleting
+        self.assertTrue(self.database.delete_playlist(user_id, "my_list"))
+        self.assertEqual(self.database.count_user_playlists(user_id), 0)
+        self.assertFalse(self.database.delete_playlist(user_id, "my_list")) # delete again should be False
+
+
 
 class ValidationTests(unittest.TestCase):
     def test_admin_permission_uses_guild_member_permissions(self):

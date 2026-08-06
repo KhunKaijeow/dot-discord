@@ -333,15 +333,15 @@ class GuildMusicState:
         )
         embed = discord.Embed(
             description=f"🎵 **[{source.title}]({track.youtube_url})**",
-            color=0x9B59B6,
+            color=0x7d5fff,
         )
         avatar = self.bot.user.display_avatar.url if self.bot.user else None
         embed.set_author(name="กำลังเล่น • Now Playing", icon_url=avatar)
         if source.thumbnail:
             embed.set_thumbnail(url=source.thumbnail)
-        embed.add_field(name="⏱️ ความยาว", value=f"`{duration_text}`")
-        embed.add_field(name="👤 ผู้ขอเพลง", value=track.requester.mention)
-        embed.add_field(name="🔎 แหล่งคำขอ", value=track.requested_via)
+        embed.add_field(name="⏱️ ความยาวเพลง", value=f"`{duration_text}`", inline=True)
+        embed.add_field(name="🔎 แหล่งคำขอ", value=f"`{track.requested_via}`", inline=True)
+        embed.set_footer(text="ควบคุมการเล่นเพลงได้ด้วยปุ่มกดด้านล่าง")
         await loading_message.edit(
             content=None,
             embed=embed,
@@ -387,14 +387,13 @@ class GuildMusicState:
             self.voice_client = None
 
         if self.text_channel:
-            await self.text_channel.send(
-                embed=discord.Embed(
-                    description=(
-                        "📭 **เพลงในคิวหมดแล้ว ผมออกจากห้องเสียงให้แล้วนะครับ**"
-                    ),
-                    color=0x95A5A6,
-                )
+            embed = discord.Embed(
+                title="👋 สิ้นสุดการเล่นเพลง",
+                description="เพลงในคิวหมดแล้ว บอทออกจากห้องเสียงเนื่องจากไม่มีการใช้งานต่อครับ",
+                color=0x718093,
             )
+            embed.set_footer(text="เรียกใช้งานใหม่ด้วย /play ได้ทุกเมื่อครับ")
+            await self.text_channel.send(embed=embed)
 
     async def stop(self) -> None:
         self.stop_requested = True
@@ -568,16 +567,18 @@ class MusicCog(commands.Cog):
 
         state = get_state(self.bot, interaction.guild.id)
         position = await state.enqueue(track, voice_client, interaction.channel)
+        is_playing_now = (position == 0)
         embed = discord.Embed(
-            description=f"🎵 **{track.title}**",
-            color=0x2ECC71 if position == 0 else 0x3498DB,
+            description=f"🎵 **[{track.title}]({track.youtube_url})**",
+            color=0x2ecc71 if is_playing_now else 0x3498db,
         )
         embed.set_author(
-            name="กำลังเริ่มเล่น" if position == 0 else "เพิ่มเข้าคิวแล้ว"
+            name="กำลังเริ่มเล่นเพลง" if is_playing_now else "เพิ่มเพลงเข้าคิวแล้ว",
+            icon_url=self.bot.user.display_avatar.url if self.bot.user else None
         )
-        embed.add_field(name="👤 ผู้ขอเพลง", value=interaction.user.mention)
-        if position:
-            embed.add_field(name="📋 ลำดับในคิว", value=f"`#{position}`")
+        embed.add_field(name="🔎 แหล่งคำขอ", value=f"`{track.requested_via}`", inline=True)
+        if not is_playing_now:
+            embed.add_field(name="📋 ลำดับคิว", value=f"`#{position}`", inline=True)
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="skip", description="ข้ามเพลงปัจจุบัน")
@@ -637,24 +638,39 @@ class MusicCog(commands.Cog):
             )
             return
 
-        embed = discord.Embed(title="🎶 คิวเพลง", color=0x3498DB)
-        current_text = state.current.title if state.current else "ไม่มี"
-        embed.add_field(
-            name="กำลังเล่น",
-            value=current_text,
-            inline=False,
+        embed = discord.Embed(
+            title="🎶 รายการคิวเพลง",
+            color=0x7d5fff
         )
-        queue_text = "\n".join(
-            f"`{index:02d}` {track.title} — {track.requester.mention}"
-            for index, track in enumerate(list(state.queue)[:10], start=1)
-        )
+        if state.current:
+            embed.add_field(
+                name="🔊 กำลังเล่นขณะนี้",
+                value=f"▶️ **[{state.current.title}]({state.current.youtube_url})**",
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="🔊 กำลังเล่นขณะนี้",
+                value="*ไม่มีการเล่นเพลงในขณะนี้*",
+                inline=False,
+            )
+        
+        queue_items = []
+        for index, track in enumerate(list(state.queue)[:10], start=1):
+            queue_items.append(f"`{index:02d}` [{track.title}]({track.youtube_url})")
+        queue_text = "\n".join(queue_items)
         if len(state.queue) > 10:
-            queue_text += f"\nและอีก {len(state.queue) - 10} เพลง"
+            queue_text += f"\n*และอีก {len(state.queue) - 10} เพลงในคิว*"
+            
         embed.add_field(
-            name="เพลงถัดไป",
-            value=queue_text or "ไม่มี",
+            name="📋 รายการเพลงถัดไป",
+            value=queue_text or "*คิวว่างเปล่า*",
             inline=False,
         )
+        if len(state.queue) > 0:
+            embed.set_footer(text=f"ทั้งหมด {len(state.queue)} เพลงในคิว • ใช้ /skip เพื่อข้ามเพลง")
+        else:
+            embed.set_footer(text="ใช้ /play [ชื่อเพลง] เพื่อเพิ่มเพลงลงในคิว")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="now-playing", description="ดูเพลงที่กำลังเล่นและสถานะการเล่น")
@@ -665,13 +681,20 @@ class MusicCog(commands.Cog):
         if not state.current:
             await interaction.response.send_message("🎵 ตอนนี้ยังไม่มีเพลงเล่นอยู่", ephemeral=True)
             return
-        await interaction.response.send_message(
-            embed=discord.Embed(
-                title="🎵 Now Playing",
-                description=f"[{state.current.title}]({state.current.youtube_url})\nVolume `{int(state.volume * 100)}%` • Loop `{state.loop_mode}`",
-                color=0x9B59B6,
-            )
+        loop_map = {"off": "❌ ปิด", "track": "🔂 เพลงปัจจุบัน", "queue": "🔁 ทั้งคิว"}
+        loop_text = loop_map.get(state.loop_mode, state.loop_mode)
+        
+        embed = discord.Embed(
+            title="🎵 กำลังเล่นขณะนี้",
+            description=f"🎵 **[{state.current.title}]({state.current.youtube_url})**",
+            color=0x7d5fff
         )
+        embed.add_field(name="🔊 ระดับเสียง", value=f"`{int(state.volume * 100)}%`", inline=True)
+        embed.add_field(name="🔁 โหมดเล่นซ้ำ", value=f"`{loop_text}`", inline=True)
+        embed.add_field(name="🔎 แหล่งคำขอ", value=f"`{state.current.requested_via}`", inline=True)
+        embed.set_footer(text="ควบคุมการเล่นเพลงได้ด้วยปุ่มกดในห้องส่งข้อความ")
+        
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="volume", description="ปรับระดับเสียง 0–100%")
     async def volume(self, interaction: discord.Interaction, percent: app_commands.Range[int, 0, 100]) -> None:
@@ -761,6 +784,193 @@ class MusicCog(commands.Cog):
         await interaction.response.send_message(
             "👋 หยุดเพลง ล้างคิว และออกจากห้องให้แล้วครับ"
         )
+
+    @app_commands.command(name="playlist-save", description="บันทึกเพลงในคิวปัจจุบันเป็นเพลย์ลิสต์ส่วนตัว")
+    @app_commands.describe(name="ชื่อเพลย์ลิสต์ (ความยาวไม่เกิน 50 ตัวอักษร)")
+    async def playlist_save(self, interaction: discord.Interaction, name: str) -> None:
+        if not interaction.guild:
+            return
+        
+        name = name.strip()
+        if not 1 <= len(name) <= 50:
+            await interaction.response.send_message("❌ ชื่อเพลย์ลิสต์ต้องมีความยาว 1-50 ตัวอักษรครับ", ephemeral=True)
+            return
+
+        state = get_state(self.bot, interaction.guild.id)
+        
+        tracks_to_save = []
+        if state.current:
+            tracks_to_save.append(state.current)
+        tracks_to_save.extend(list(state.queue))
+        
+        if not tracks_to_save:
+            await interaction.response.send_message("❌ ไม่มีเพลงกำลังเล่นหรืออยู่ในคิวที่จะบันทึกได้ครับ", ephemeral=True)
+            return
+            
+        if len(tracks_to_save) > 100:
+            await interaction.response.send_message("❌ บันทึกได้สูงสุด 100 เพลงต่อเพลย์ลิสต์ครับ คิวปัจจุบันยาวเกินไป", ephemeral=True)
+            return
+
+        await interaction.response.defer(thinking=True)
+
+        try:
+            user_id = interaction.user.id
+            playlist_count = await asyncio.to_thread(self.bot.database.count_user_playlists, user_id)
+            
+            existing_playlists = await asyncio.to_thread(self.bot.database.list_playlists, user_id)
+            is_overwrite = any(p["name"].lower() == name.lower() for p in existing_playlists)
+            
+            if playlist_count >= 10 and not is_overwrite:
+                await interaction.followup.send("❌ คุณบันทึกเพลย์ลิสต์ครบ 10 รายการแล้วครับ กรุณาลบอันเก่าออกก่อน")
+                return
+
+            track_tuples = [(t.title, t.youtube_url, t.requested_via) for t in tracks_to_save]
+            
+            await asyncio.to_thread(self.bot.database.save_playlist, user_id, name, track_tuples)
+            
+            action_text = "เขียนทับ" if is_overwrite else "บันทึก"
+            embed = discord.Embed(
+                title="💾 บันทึกเพลย์ลิสต์สำเร็จ",
+                description=f"**ชื่อเพลย์ลิสต์:** `{name}`\n**จำนวนเพลง:** `{len(track_tuples)}` เพลง ({action_text})",
+                color=0x2ecc71
+            )
+            embed.set_footer(text="เรียกใช้งานด้วย /playlist-load เพื่อเล่นเพลย์ลิสต์นี้ได้ทุกเวลา")
+            await interaction.followup.send(embed=embed)
+            
+        except Exception as e:
+            logger.exception("Error saving playlist")
+            await interaction.followup.send("😅 ขออภัย เกิดข้อผิดพลาดในการบันทึกเพลย์ลิสต์ ลองใหม่อีกครั้งภายหลังครับ")
+
+    @app_commands.command(name="playlist-load", description="โหลดเพลงจากเพลย์ลิสต์ส่วนตัวเข้าสู่คิว")
+    @app_commands.describe(name="ชื่อเพลย์ลิสต์ที่บันทึกไว้")
+    async def playlist_load(self, interaction: discord.Interaction, name: str) -> None:
+        if not interaction.guild:
+            return
+        
+        if not interaction.user.voice:
+            await interaction.response.send_message(
+                "🎧 เข้าห้องเสียงก่อน แล้วเรียก `/playlist-load` อีกครั้งนะครับ",
+                ephemeral=True,
+            )
+            return
+
+        name = name.strip()
+        await interaction.response.defer(thinking=True)
+
+        try:
+            user_id = interaction.user.id
+            db_tracks = await asyncio.to_thread(self.bot.database.load_playlist, user_id, name)
+            
+            if not db_tracks:
+                await interaction.followup.send(f"❌ ไม่พบเพลย์ลิสต์ชื่อ `{name}` ของคุณครับ (หรือไม่มีเพลงในเพลย์ลิสต์)")
+                return
+
+            voice_channel = interaction.user.voice.channel
+            voice_client = interaction.guild.voice_client
+            
+            if voice_client and voice_client.channel != voice_channel and (
+                voice_client.is_playing() or voice_client.is_paused()
+            ):
+                await interaction.followup.send("❌ บอทกำลังใช้งานในห้องเสียงอื่นอยู่ครับ")
+                return
+
+            try:
+                if voice_client is None:
+                    voice_client = await voice_channel.connect()
+                elif voice_client.channel != voice_channel:
+                    await voice_client.move_to(voice_channel)
+            except discord.DiscordException:
+                logger.exception("Could not connect to voice channel")
+                await interaction.followup.send("🎧 เข้าห้องเสียงไม่สำเร็จ กรุณาตรวจสิทธิ์ Connect/Speak")
+                return
+
+            state = get_state(self.bot, interaction.guild.id)
+            
+            loaded_count = 0
+            for row in db_tracks:
+                track = Track(
+                    title=row["title"],
+                    youtube_url=row["youtube_url"],
+                    requester=interaction.user,
+                    requested_via=row["requested_via"]
+                )
+                await state.enqueue(track, voice_client, interaction.channel)
+                loaded_count += 1
+
+            embed = discord.Embed(
+                title="📥 โหลดเพลย์ลิสต์สำเร็จ",
+                description=f"โหลดเพลงจากเพลย์ลิสต์ `{name}` จำนวน `{loaded_count}` เพลงเข้าสู่คิวเรียบร้อยแล้วครับ",
+                color=0x7d5fff
+            )
+            embed.set_footer(text="ใช้ /queue เพื่อดูเพลงทั้งหมดในคิว")
+            await interaction.followup.send(embed=embed)
+
+        except Exception as e:
+            logger.exception("Error loading playlist")
+            await interaction.followup.send("😅 ขออภัย เกิดข้อผิดพลาดในการโหลดเพลย์ลิสต์ ลองใหม่อีกครั้งภายหลังครับ")
+
+    @app_commands.command(name="playlist-list", description="แสดงรายชื่อเพลย์ลิสต์ส่วนตัวทั้งหมดของคุณ")
+    async def playlist_list(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(thinking=True)
+        try:
+            user_id = interaction.user.id
+            playlists = await asyncio.to_thread(self.bot.database.list_playlists, user_id)
+            
+            if not playlists:
+                embed = discord.Embed(
+                    description="📭 **คุณยังไม่มีเพลย์ลิสต์ส่วนตัวเลยครับ**\nใช้ `/playlist-save [ชื่อ]` เพื่อเซฟเพลงจากคิวปัจจุบันได้ครับ",
+                    color=0x7d5fff
+                )
+                await interaction.followup.send(embed=embed)
+                return
+
+            embed = discord.Embed(
+                title="💾 คลังเพลย์ลิสต์ส่วนตัวของคุณ",
+                color=0x7d5fff
+            )
+            
+            desc_items = []
+            for i, p in enumerate(playlists, start=1):
+                try:
+                    dt = datetime.fromisoformat(p["created_at"])
+                    date_str = dt.strftime("%d/%m/%Y")
+                except Exception:
+                    date_str = p["created_at"]
+                
+                desc_items.append(
+                    f"`{i:02d}` **{p['name']}** — `{p['track_count']}` เพลง (สร้างเมื่อ: {date_str})"
+                )
+            
+            embed.description = "\n".join(desc_items)
+            embed.set_footer(text=f"ทั้งหมด {len(playlists)}/10 เพลย์ลิสต์ • โหลดใช้ด้วย /playlist-load")
+            await interaction.followup.send(embed=embed)
+            
+        except Exception as e:
+            logger.exception("Error listing playlists")
+            await interaction.followup.send("😅 ขออภัย เกิดข้อผิดพลาดในการดึงรายการเพลย์ลิสต์ ลองใหม่อีกครั้งภายหลังครับ")
+
+    @app_commands.command(name="playlist-delete", description="ลบเพลย์ลิสต์ส่วนตัวของคุณ")
+    @app_commands.describe(name="ชื่อเพลย์ลิสต์ที่ต้องการลบ")
+    async def playlist_delete(self, interaction: discord.Interaction, name: str) -> None:
+        name = name.strip()
+        await interaction.response.defer(thinking=True)
+        try:
+            user_id = interaction.user.id
+            deleted = await asyncio.to_thread(self.bot.database.delete_playlist, user_id, name)
+            
+            if deleted:
+                embed = discord.Embed(
+                    title="🗑️ ลบเพลย์ลิสต์สำเร็จ",
+                    description=f"ลบเพลย์ลิสต์ชื่อ `{name}` เรียบร้อยแล้วครับ",
+                    color=0xe74c3c
+                )
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send(f"❌ ไม่พบเพลย์ลิสต์ชื่อ `{name}` ของคุณครับ")
+                
+        except Exception as e:
+            logger.exception("Error deleting playlist")
+            await interaction.followup.send("😅 ขออภัย เกิดข้อผิดพลาดในการลบเพลย์ลิสต์ ลองใหม่อีกครั้งภายหลังครับ")
 
 
 def load_opus() -> None:

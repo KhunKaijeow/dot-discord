@@ -73,6 +73,22 @@ class Database:
             created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS alerts_guild_idx ON price_alerts(guild_id);
+        CREATE TABLE IF NOT EXISTS playlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50),
+            created_at TEXT NOT NULL,
+            UNIQUE(user_id, name)
+        );
+        CREATE TABLE IF NOT EXISTS playlist_tracks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            youtube_url TEXT NOT NULL,
+            requested_via TEXT NOT NULL,
+            position INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS playlists_user_idx ON playlists(user_id);
         """
         with self._lock, closing(self._connect()) as connection:
             connection.executescript(schema)
@@ -174,3 +190,66 @@ class Database:
                 "alerts": connection.execute("SELECT COUNT(*) FROM price_alerts").fetchone()[0],
                 "digests": connection.execute("SELECT COUNT(*) FROM guild_settings WHERE digest_enabled = 1").fetchone()[0],
             }
+
+    def save_playlist(self, user_id: int, name: str, tracks: list[tuple[str, str, str]]) -> None:
+        """Saves a playlist of tracks for a given user. Replaces tracks if playlist already exists."""
+        with self._lock, closing(self._connect()) as conn:
+            conn.execute("BEGIN TRANSACTION")
+            try:
+                # 1. Insert or ignore playlist
+                conn.execute(
+                    "INSERT OR IGNORE INTO playlists (user_id, name, created_at) VALUES (?, ?, ?)",
+                    (user_id, name, datetime.now(timezone.utc).isoformat())
+                )
+                # 2. Get playlist id
+                row = conn.execute("SELECT id FROM playlists WHERE user_id = ? AND name = ?", (user_id, name)).fetchone()
+                playlist_id = row[0]
+                
+                # 3. Delete existing tracks
+                conn.execute("DELETE FROM playlist_tracks WHERE playlist_id = ?", (playlist_id,))
+                
+                # 4. Insert new tracks in order
+                for pos, (title, youtube_url, req_via) in enumerate(tracks):
+                    conn.execute(
+                        "INSERT INTO playlist_tracks (playlist_id, title, youtube_url, requested_via, position) VALUES (?, ?, ?, ?, ?)",
+                        (playlist_id, title, youtube_url, req_via, pos)
+                    )
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                raise e
+
+    def load_playlist(self, user_id: int, name: str) -> list[dict[str, Any]]:
+        """Loads all tracks for a user's playlist, ordered by their position."""
+        sql = """
+        SELECT t.title, t.youtube_url, t.requested_via
+        FROM playlist_tracks t
+        JOIN playlists p ON t.playlist_id = p.id
+        WHERE p.user_id = ? AND p.name = ?
+        ORDER BY t.position ASC
+        """
+        return self._rows(sql, (user_id, name))
+
+    def list_playlists(self, user_id: int) -> list[dict[str, Any]]:
+        """Lists all playlists for a user, showing the track count for each."""
+        sql = """
+        SELECT p.name, p.created_at, COUNT(t.id) as track_count
+        FROM playlists p
+        LEFT JOIN playlist_tracks t ON p.id = t.playlist_id
+        WHERE p.user_id = ?
+        GROUP BY p.id
+        ORDER BY p.name ASC
+        """
+        return self._rows(sql, (user_id,))
+
+    def delete_playlist(self, user_id: int, name: str) -> bool:
+        """Deletes a user's playlist and its associated tracks (via CASCADE)."""
+        with self._lock, closing(self._connect()) as conn:
+            cursor = conn.execute("DELETE FROM playlists WHERE user_id = ? AND name = ?", (user_id, name))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def count_user_playlists(self, user_id: int) -> int:
+        """Returns the number of playlists created by the user."""
+        row = self._rows("SELECT COUNT(*) AS count FROM playlists WHERE user_id = ?", (user_id,))[0]
+        return row["count"]
