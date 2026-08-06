@@ -20,7 +20,7 @@ class BasicInfoModal(discord.ui.Modal):
 
         self.card_title = discord.ui.TextInput(
             label="Title",
-            default=current_config.get("title", ""),
+            default=current_config.get("title") or "",
             placeholder="e.g. Welcome to {server_name}!",
             max_length=256,
             required=False
@@ -28,14 +28,14 @@ class BasicInfoModal(discord.ui.Modal):
         self.description = discord.ui.TextInput(
             label="Description",
             style=discord.TextStyle.paragraph,
-            default=current_config.get("description", ""),
+            default=current_config.get("description") or "",
             placeholder="e.g. ยินดีต้อนรับคุณ {member} เข้าสู่เซิร์ฟเวอร์นะครับ! 💖",
             max_length=2000,
             required=True
         )
         self.color_hex = discord.ui.TextInput(
             label="Hex Color",
-            default=current_config.get("color", ""),
+            default=current_config.get("color") or "",
             placeholder="e.g. #ffb6c1",
             max_length=7,
             required=False
@@ -78,13 +78,13 @@ class ImagesModal(discord.ui.Modal):
 
         self.image_url = discord.ui.TextInput(
             label="Banner Image / GIF URL",
-            default=current_config.get("image_url", ""),
+            default=current_config.get("image_url") or "",
             placeholder="e.g. https://media.giphy.com/...",
             required=False
         )
         self.thumbnail_mode = discord.ui.TextInput(
             label="Thumbnail Mode (User Avatar / Server Icon / None)",
-            default=current_config.get("thumbnail_mode", "None"),
+            default=current_config.get("thumbnail_mode") or "None",
             placeholder="User Avatar, Server Icon, or None",
             max_length=20,
             required=False
@@ -252,9 +252,6 @@ class WelcomeCog(commands.Cog):
                 )
                 if title:
                     embed.title = title
-
-                member_count_text = f"คุณคือสมาชิกคนที่ {guild.member_count}" if config_type == "welcome" else f"เหลือสมาชิกทั้งหมด {guild.member_count} คน"
-                embed.set_footer(text=member_count_text)
 
                 thumbnail_mode = config.get("thumbnail_mode", "None")
                 if thumbnail_mode == "User Avatar":
