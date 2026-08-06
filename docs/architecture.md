@@ -1,61 +1,130 @@
-# Project architecture
+# สถาปัตยกรรมโปรเจกต์
 
-โปรเจกต์แบ่งโค้ดตามหน้าที่เพื่อให้เพิ่มฟีเจอร์และทดสอบได้ง่ายขึ้น:
+เอกสารนี้อธิบายโครงสร้าง runtime, ขอบเขตของโมดูล และแนวทางเพิ่มฟีเจอร์ให้
+Javis Discord Bot โดยอ้างอิงจากโค้ดปัจจุบัน
+
+## ภาพรวมการทำงาน
 
 ```text
 main.py
-  └── src.bot
+  └── src.bot.GeminiBot
         ├── src.config
-        ├── src.services
-        └── src.cogs
+        ├── src.cogs.*
+        │     └── src.services.*
+        └── src.services.database.Database
               └── data/javis.db
 ```
 
+1. `main.py` ตรวจ environment variables ที่จำเป็น แล้วเริ่ม Discord client
+2. `src/bot.py` สร้าง bot, database และ AI service ก่อนโหลด extensions ใน
+   `COG_EXTENSIONS`
+3. แต่ละ Cog ลงทะเบียน Slash Commands หรือ background task ของตัวเอง
+4. Cog เรียก service สำหรับ API ภายนอก, การแปลงข้อมูล และ persistence
+5. Discord sync application commands เมื่อ event `on_ready` ทำงาน
+
+ระบบใช้ Discord Gateway โดยตรงและไม่มี HTTP server หรือ health-check endpoint
+
 ## ขอบเขตแต่ละส่วน
 
-- `main.py` ตรวจ environment variables ที่จำเป็นและเริ่ม process เท่านั้น
-- `src/bot.py` ประกอบ Discord bot, ลงทะเบียน extension และเก็บเฉพาะคำสั่งหลัก
-- `src/cogs/` เก็บ Discord UI และ slash commands แยกหนึ่งไฟล์ต่อฟีเจอร์
-- `src/services/` ติดต่อ SDK หรือ API ภายนอก และไม่ควรผูกกับ Discord UI
-- `src/config.py` เป็นจุดเดียวสำหรับอ่าน environment variables
-- `src/services/database.py` เป็น persistence boundary สำหรับ SQLite โดยใช้
-  parameterized queries และเก็บ runtime state ใน `data/javis.db`
+| ส่วน | หน้าที่ |
+| --- | --- |
+| `main.py` | Entry point และ startup validation |
+| `src/config.py` | อ่าน environment variables ผ่าน `python-dotenv` |
+| `src/bot.py` | ประกอบ bot, โหลด extensions, `/ask`, `/reset-chat` และ error handler กลาง |
+| `src/cogs/` | Discord UI, Slash Commands และ background workers แยกตามฟีเจอร์ |
+| `src/services/` | API clients, market data, chart, translation และ SQLite repository |
+| `tests/` | Unit tests สำหรับ persistence, validation, permission และ rate limit |
+| `data/` | Runtime state ที่ไม่ควร commit เช่น SQLite และ dashboard state |
 
 Dependency ควรไหลจาก `bot` ไป `cogs`/`services` และจาก `cogs` ไป `services`
-หรือ `config` เท่านั้น หลีกเลี่ยงการ import `bot` กลับจากโมดูลย่อยเพื่อไม่ให้เกิด
+หรือ `config` เท่านั้น หลีกเลี่ยงการ import `bot` กลับจากโมดูลย่อยเพื่อป้องกัน
 circular import
 
-Cog เข้าถึงฐานข้อมูลผ่าน `bot.database` และควรเรียก synchronous repository methods
-ด้วย `asyncio.to_thread` เพื่อไม่ block Discord Gateway ห้ามประกอบ SQL จาก input
-ของผู้ใช้ และต้องเพิ่มชื่อ column ลง allowlist ก่อนรองรับการตั้งค่าใหม่
+## โมดูลฟีเจอร์
 
-## บริการเสริมและฟีเจอร์สำคัญ (Core Services)
+| กลุ่ม | Cog/Service หลัก | รายละเอียด |
+| --- | --- | --- |
+| AI chat/tools | `bot.py`, `cogs/ai_tools.py`, `services/gemini.py` | Typhoon AI, ประวัติแชทแยกตาม channel และ Context Menu 3 รายการ |
+| Music | `cogs/music.py` | yt-dlp, FFmpeg/Opus, Spotify track/playlist resolution, queue และ Saved Playlists |
+| Market | `cogs/stock.py`, `crypto.py`, `gold.py`, `price_alerts.py` | Yahoo Finance, Binance, กราฟ 30 วัน และ Price Alerts |
+| Content | `news.py`, `lyrics.py`, `translator.py`, `draw.py` | Google News RSS, LRCLIB, Google Translate และ Together AI FLUX.1 |
+| Utility | `weather.py`, `valorant.py`, `horoscope.py` | wttr.in, HenrikDev, Prokerala และ Wikimedia |
+| Automation | `reminder.py`, `dashboard.py`, `morning_digest.py`, `x_notifier.py`, `deals_notifier.py` | งานตามเวลาและการแจ้งเตือนอัตโนมัติ |
+| Administration | `admin.py`, `health.py` | การตั้งค่าระดับ Server และข้อมูลสุขภาพของ bot |
 
-### 1. บริการสร้างกราฟราคา (Chart Generator)
-- โมดูล `src/services/chart_generator.py` ทำหน้าที่วาดกราฟแนวโน้มราคาสินทรัพย์ (เช่น หุ้น คริปโต ทองคำ) แบบภาพนิ่ง (.png) โดยใช้ Matplotlib
-- ถูกกำหนดให้เรนเดอร์ในโหมด non-GUI (`matplotlib.use('Agg')`) เพื่อความเสถียรบนเซิร์ฟเวอร์
-- ปรับแต่งการแสดงผลขั้นสูง: ใช้สีพื้นหลังโทนเดียวกับดิสคอร์ดแบบมืด (`#2b2d31`), เพิ่มเลเยอร์เส้นเรืองแสงสไตล์นีออน (Neon Line Glow), ใส่เอฟเฟกต์ไล่เฉดสีแนวดิ่ง (Vertical Gradient Fill), และใส่จุดเน้นราคาล่าสุดพร้อมวงแหวนเรืองแสง
+`services/gemini.py` คงชื่อเดิมไว้เพื่อ compatibility แต่ implementation ปัจจุบัน
+เรียก OpenTyphoon endpoint ด้วยโมเดล `typhoon-v2.5-30b-a3b-instruct`
 
-### 2. บริการปัญญาประดิษฐ์ (AI Service)
-- โมดูล `src/services/gemini.py` ได้เปลี่ยนระบบการทำงานภายในไปเรียกใช้งาน **Typhoon AI** ผ่าน API รูปแบบ OpenAI-compatible (โมเดล `typhoon-v2.5-30b-a3b-instruct`)
-- รักษาชื่อโครงสร้างเดิมไว้เพื่อไม่ให้กระทบกับคำสั่ง `/ask` หรือระบบสรุปยามเช้า แต่ปรับปรุงให้ประมวลผลผ่าน OpenTyphoon Endpoint พร้อมระบบจัดเก็บประวัติการสนทนาส่วนตัวของแต่ละช่องแชท (`TyphoonChat`)
+## Persistence และ runtime state
 
-### 3. ระบบเพลงและคลังเพลงโปรด (Music & Saved Playlists)
-- ระบบเพลงเพิ่มการจัดเก็บสถานะคิวเพลงส่วนตัวใน `Database` ผ่านคำสั่ง `/playlist-save`, `/playlist-load`
-- สร้างตาราง `playlists` (เชื่อมกับ Discord User ID) และ `playlist_tracks` (เก็บรายละเอียดเพลง ลำดับ และลิงก์อ้างอิง) โดยทำงานร่วมกับ SQLite Foreign Key แบบ `ON DELETE CASCADE` เพื่อความสะอาดในการล้างข้อมูลคิว
+`src/services/database.py` เป็น persistence boundary สำหรับ SQLite ใช้
+parameterized queries, เปิด foreign keys และ WAL mode และป้องกันการเข้าถึงพร้อมกัน
+ด้วย `threading.RLock`
 
-### 4. บริการวาดรูปภาพ AI (Flux Image Generation)
-- โมดูล `src/cogs/draw.py` เปลี่ยนไปใช้บริการของ **Together AI** โดยทำงานร่วมกับโมเดล `black-forest-labs/FLUX.1-schnell-Free`
-- เพื่อแก้ไขปัญหาลิงก์รูปภาพหมดอายุ (Temporary Link) บอทจะทำการดาวน์โหลดไบต์รูปภาพจาก API แล้วแปลงเป็น `discord.File` เพื่อแนบส่งตรงไปยังห้องแชทของดิสคอร์ดเป็นรูปภาพถาวร
+ข้อมูลใน `data/javis.db` ได้แก่:
 
-## เพิ่ม slash command ใหม่
+- การตั้งค่า Morning Digest และห้อง Price Alert ต่อ Server
+- Reminder แบบครั้งเดียวและแบบทำซ้ำ
+- Price Alert ของผู้ใช้
+- Saved Playlists และลำดับเพลง (ลบ tracks อัตโนมัติด้วย `ON DELETE CASCADE`)
+
+Cog ควรเรียก synchronous repository methods ด้วย `asyncio.to_thread` เพื่อไม่ block
+Discord Gateway ห้ามประกอบ SQL จาก input ของผู้ใช้ และต้องเพิ่มชื่อ column ลง
+allowlist ใน `Database.update_settings` ก่อนรองรับการตั้งค่าใหม่
+
+ข้อมูลต่อไปนี้ไม่ได้อยู่ใน SQLite:
+
+- ประวัติแชท Typhoon และคิวเพลง เก็บในหน่วยความจำและหายเมื่อ restart
+- Dashboard เก็บ channel/message ID ใน `data/dashboard.json`
+- สถานะ notifier บางส่วนเก็บในไฟล์ JSON ใต้ `data/`
+
+การ deploy ต้อง mount persistent volume ที่ `data/` หากต้องการเก็บข้อมูลข้าม
+redeploy และควรใช้เพียง 1 process/replica เพราะ runtime state บางส่วนไม่ได้แชร์กัน
+
+## Background workers
+
+| Worker | รอบทำงาน | Persistence/แหล่งข้อมูล |
+| --- | --- | --- |
+| Reminder delivery | ทุก 15 วินาที | SQLite |
+| Price Alerts | ทุก 5 นาที | SQLite, Yahoo Finance/Binance |
+| Morning Digest | ทุก 1 นาที | SQLite และ timezone ของแต่ละ Server |
+| sheapgamer notifier | ทุก 5 นาที | rss.app feed |
+| Game deals | ทุก 1 ชั่วโมง | GamerPower API |
+| Daily Dashboard | 08:00 น. `Asia/Bangkok` | Yahoo Finance และ Google News RSS |
+
+workers เริ่มเมื่อ Cog ถูกโหลดและรอ `bot.wait_until_ready()` ก่อนทำงานกับ Discord
+
+## ความปลอดภัยและสิทธิ์
+
+- Bot ปิด mentions โดยค่าเริ่มต้นด้วย `AllowedMentions.none()` และเปิด user mention
+  เฉพาะข้อความแจ้งเตือนที่จำเป็น
+- `/ask` และ `/draw` มี per-user cooldown; AI Context Menu จำกัด 3 ครั้งต่อนาที
+- `/x-setup`, `/deals-setup`, `/dashboard-setup` ต้องมี `Manage Channels`
+- `/digest setup`, `/digest disable`, `/settings` ต้องมี `Manage Server`
+- Reminder, Price Alert และ Playlist ตรวจ ownership ตอนอ่านหรือลบข้อมูล
+- `.env`, SQLite และ runtime JSON ถูก ignore และต้องไม่ commit ขึ้น repository
+
+## เพิ่ม Slash Command ใหม่
 
 1. สร้างโมดูลใน `src/cogs/` และประกาศคลาสที่สืบทอดจาก `commands.Cog`
-2. เพิ่มฟังก์ชัน `async def setup(bot)` ซึ่งเรียก `bot.add_cog(...)`
+2. เพิ่ม `async def setup(bot)` ซึ่งเรียก `bot.add_cog(...)`
 3. เพิ่มชื่อโมดูลลงใน `COG_EXTENSIONS` ที่ `src/bot.py`
-4. หากมี client/API logic ให้แยกไว้ใน `src/services/`
-5. รัน compile check ก่อนเปิดบอต:
+4. แยก API/client หรือ business logic ที่นำกลับมาใช้ได้ไว้ใน `src/services/`
+5. ใช้ `asyncio.to_thread` กับ SDK หรือ repository แบบ synchronous
+6. validate ความยาว รูปแบบ ช่วงค่า และ permission ของ input ทุกจุด
+7. เพิ่ม test ใน `tests/` แล้วรัน:
 
    ```bash
    python -m compileall -q main.py src
+   python -m unittest discover -s tests -v
    ```
+
+หาก command เรียกเครือข่าย ให้กำหนด timeout, จัดการ response ที่ไม่สำเร็จ และส่ง
+ข้อความผิดพลาดแบบไม่เปิดเผย token, payload ภายใน หรือ stack trace ต่อผู้ใช้
+
+## หมายเหตุเรื่อง environment variables
+
+AI runtime ใช้ `TYPHOON_API_KEY` แต่ `main.py` ปัจจุบันยังตรวจ
+`GEMINI_API_KEY` จาก startup guard เดิมด้วย ดังนั้น environment ต้องกำหนดทั้งสองค่า
+จนกว่าจะเปลี่ยน validation ใน entry point ดูรายการทั้งหมดและแหล่งที่มาของคีย์ได้ที่
+[README](../README.md#ตั้งค่าตัวแปรแวดล้อม)
