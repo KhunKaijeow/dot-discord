@@ -61,9 +61,9 @@ class HoroscopeCog(commands.Cog):
         self.horoscope_service = ProkeralaService(
             PROKERALA_CLIENT_ID,
             PROKERALA_CLIENT_SECRET,
-            bot.http,
+            bot.external_http,
         )
-        self.daily_color_service = ThaiDailyColorService(bot.http)
+        self.daily_color_service = ThaiDailyColorService(bot.external_http)
 
     @app_commands.command(
         name="horoscope",

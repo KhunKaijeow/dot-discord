@@ -138,12 +138,12 @@ class DrawCog(commands.Cog):
             embed, file = await generate_flux_image(
                 prompt,
                 TOGETHER_API_KEY,
-                self.bot.http,
+                self.bot.external_http,
             )
             set_embed_author(embed, self.bot, "Image Studio")
             embed.description = f"วาดให้ {interaction.user.mention}\n> {prompt}"
 
-            view = DrawControlView(prompt, TOGETHER_API_KEY, self.bot.http)
+            view = DrawControlView(prompt, TOGETHER_API_KEY, self.bot.external_http)
             await interaction.followup.send(embed=embed, file=file, view=view)
         except Exception:
             logger.exception("Error generating image")

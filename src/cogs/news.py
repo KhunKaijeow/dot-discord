@@ -47,7 +47,7 @@ class NewsCog(commands.Cog):
             title_display = "📰 มีอะไรน่าสนใจวันนี้บ้าง"
 
         try:
-            async with self.bot.http.get(url, timeout=REQUEST_TIMEOUT) as response:
+            async with self.bot.external_http.get(url, timeout=REQUEST_TIMEOUT) as response:
                 if response.status != 200:
                     raise RuntimeError(f"Google News RSS returned HTTP {response.status}")
 

@@ -66,7 +66,7 @@ class DealsNotifierCog(commands.Cog):
 
     async def fetch_active_giveaways(self) -> list[dict]:
         try:
-            async with self.bot.http.get(API_URL, timeout=REQUEST_TIMEOUT) as response:
+            async with self.bot.external_http.get(API_URL, timeout=REQUEST_TIMEOUT) as response:
                 if response.status != 200:
                     logger.warning("GamerPower returned HTTP %s", response.status)
                     return []

@@ -723,7 +723,11 @@ class MusicCog(commands.Cog):
             return
 
         try:
-            tracks = await resolve_tracks(query, interaction.user, self.bot.http)
+            tracks = await resolve_tracks(
+                query,
+                interaction.user,
+                self.bot.external_http,
+            )
         except MusicError as error:
             await interaction.followup.send(f"😅 {error}", ephemeral=True)
             return

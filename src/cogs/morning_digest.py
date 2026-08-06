@@ -35,7 +35,7 @@ class MorningDigestCog(commands.Cog):
         set_embed_author(embed, self.bot, "Morning Digest")
         timeout = aiohttp.ClientTimeout(total=12)
         try:
-            async with self.bot.http.get(
+            async with self.bot.external_http.get(
                 f"https://wttr.in/{quote(city, safe='')}?format=j1&lang=th",
                 timeout=timeout,
             ) as response:

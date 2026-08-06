@@ -49,7 +49,7 @@ class ValorantCog(commands.Cog):
         headers = {"Authorization": VALORANT_API_KEY}
 
         try:
-            async with self.bot.http.get(url, headers=headers) as response:
+            async with self.bot.external_http.get(url, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
                     api_data = data.get("data", {})

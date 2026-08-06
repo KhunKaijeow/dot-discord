@@ -57,6 +57,8 @@ circular import
 สร้าง client หนึ่งครั้งก่อนโหลด Cog และปิดในช่วง shutdown ฝั่ง async ใช้
 `aiohttp.ClientSession` และ connection pool ร่วมกัน ส่วน Typhoon ใช้ pooled
 `requests.Session` แยกตาม worker thread ผ่าน client เดียวกัน เพื่อไม่ block Gateway
+ตัว client นี้เก็บใน `bot.external_http` เพื่อไม่ชนกับ `bot.http` ที่ `discord.py`
+สงวนไว้ใช้ login และเรียก Discord REST API ภายใน
 
 `services/typhoon.py` เป็น implementation หลักและเรียก OpenTyphoon endpoint ด้วย
 โมเดล `typhoon-v2.5-30b-a3b-instruct` ส่วน `services/gemini.py` เป็น compatibility

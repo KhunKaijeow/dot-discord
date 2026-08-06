@@ -68,7 +68,7 @@ class XNotifierCog(commands.Cog):
 
     async def fetch_feed_items(self) -> list[ET.Element]:
         try:
-            async with self.bot.http.get(FEED_URL, timeout=REQUEST_TIMEOUT) as response:
+            async with self.bot.external_http.get(FEED_URL, timeout=REQUEST_TIMEOUT) as response:
                 if response.status != 200:
                     logger.warning("sheapgamer RSS returned HTTP %s", response.status)
                     return []

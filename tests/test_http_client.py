@@ -1,5 +1,8 @@
 import unittest
 
+import discord
+from discord.ext import commands
+
 from src.services.http_client import HttpClient
 
 
@@ -26,6 +29,18 @@ class HttpClientTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             client.get("https://example.com")
         await client.close()
+
+    async def test_external_client_does_not_replace_discord_http_client(self):
+        bot = commands.Bot(command_prefix="!", intents=discord.Intents.none())
+        external_http = HttpClient()
+        bot.external_http = external_http
+
+        self.assertTrue(hasattr(bot.http, "static_login"))
+        self.assertIs(bot.external_http, external_http)
+        self.assertIsNot(bot.http, external_http)
+
+        await external_http.close()
+        await bot.close()
 
 
 if __name__ == "__main__":

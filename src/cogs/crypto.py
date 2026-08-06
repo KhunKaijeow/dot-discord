@@ -39,13 +39,13 @@ class CryptoCog(commands.Cog):
         klines_url = f"https://api.binance.com/api/v3/klines?symbol={symbol}USDT&interval=1d&limit=30"
 
         try:
-            async with self.bot.http.get(ticker_url) as response:
+            async with self.bot.external_http.get(ticker_url) as response:
                 if response.status == 200:
                     data = await response.json()
 
                     # Fetch historical klines for chart
                     klines_data = []
-                    async with self.bot.http.get(klines_url) as kline_resp:
+                    async with self.bot.external_http.get(klines_url) as kline_resp:
                         if kline_resp.status == 200:
                             klines_data = await kline_resp.json()
 

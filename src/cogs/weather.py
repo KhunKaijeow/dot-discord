@@ -72,7 +72,7 @@ class WeatherCog(commands.Cog):
         url = f"https://wttr.in/{location}?format=j1&lang=th"
 
         try:
-            async with self.bot.http.get(url) as response:
+            async with self.bot.external_http.get(url) as response:
                 if response.status == 200:
                     data = await response.json(content_type=None)
 

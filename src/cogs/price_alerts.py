@@ -43,7 +43,7 @@ class PriceAlertsCog(commands.Cog):
             return
         try:
             normalized, current = await get_market_price(
-                self.bot.http,
+                self.bot.external_http,
                 asset_type,
                 symbol,
             )
@@ -106,7 +106,7 @@ class PriceAlertsCog(commands.Cog):
             key = (row["asset_type"], row["symbol"])
             if key not in prices:
                 try:
-                    _, prices[key] = await get_market_price(self.bot.http, *key)
+                    _, prices[key] = await get_market_price(self.bot.external_http, *key)
                 except Exception:
                     logger.warning("Price lookup failed for %s", key)
                     prices[key] = None

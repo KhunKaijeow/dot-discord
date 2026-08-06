@@ -95,7 +95,7 @@ class DashboardCog(commands.Cog):
     async def fetch_top_news(self) -> list[tuple[str, str]]:
         news: list[tuple[str, str]] = []
         try:
-            async with self.bot.http.get(
+            async with self.bot.external_http.get(
                 NEWS_FEED_URL,
                 timeout=REQUEST_TIMEOUT,
             ) as response:

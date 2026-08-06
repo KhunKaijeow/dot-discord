@@ -49,13 +49,13 @@ class JavisBot(commands.Bot):
             intents=intents,
             allowed_mentions=discord.AllowedMentions.none(),
         )
-        self.http = HttpClient()
-        self.ai_service = TyphoonService(http_client=self.http)
+        self.external_http = HttpClient()
+        self.ai_service = TyphoonService(http_client=self.external_http)
         self.database = Database()
         self.started_at = datetime.now(timezone.utc)
 
     async def setup_hook(self) -> None:
-        await self.http.start()
+        await self.external_http.start()
         for extension in COG_EXTENSIONS:
             await self.load_extension(extension)
         try:
@@ -68,7 +68,7 @@ class JavisBot(commands.Bot):
         try:
             await super().close()
         finally:
-            await self.http.close()
+            await self.external_http.close()
 
 
 bot = JavisBot()
