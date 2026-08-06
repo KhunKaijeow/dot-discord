@@ -18,6 +18,7 @@ from ..services.daily_color import (
     ThaiDailyColorService,
 )
 from ..services.prokerala import ProkeralaService, ProkeralaServiceError
+from ..ui import EmbedColor, make_embed, set_embed_author
 
 
 logger = logging.getLogger("javis.horoscope")
@@ -63,10 +64,6 @@ class HoroscopeCog(commands.Cog):
         )
         self.daily_color_service = ThaiDailyColorService()
 
-    @property
-    def avatar_url(self) -> str | None:
-        return self.bot.user.display_avatar.url if self.bot.user else None
-
     @app_commands.command(
         name="horoscope",
         description="เปิดคำทำนายดวงรายวันตามราศีของคุณ",
@@ -83,13 +80,12 @@ class HoroscopeCog(commands.Cog):
     )
     async def horoscope(self, interaction: discord.Interaction, zodiac: str):
         if not self.horoscope_service.is_configured:
-            embed = discord.Embed(
+            embed = make_embed(
+                self.bot,
+                "Horoscope",
                 title="🔑 ตั้งค่า Prokerala อีกนิดนะ",
-                description=(
-                    "⚠️ ขออภัยค่ะ ขณะนี้ระบบเปิดคำทำนายดวงรายวัน"
-                    "ยังทำงานไม่สมบูรณ์"
-                ),
-                color=0xE67E22,
+                description="ตอนนี้ยังเปิดคำทำนายไม่ได้ เพราะยังไม่ได้ใส่ Prokerala credentials นะ",
+                color=EmbedColor.WARNING,
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
@@ -105,13 +101,12 @@ class HoroscopeCog(commands.Cog):
         except ProkeralaServiceError:
             logger.exception("Horoscope request failed")
             await interaction.followup.send(
-                embed=discord.Embed(
-                    title="😅 เปิดคำทำนายให้ไม่ได้ในตอนนี้",
-                    description=(
-                        "ตอนนี้ผมติดต่อ Prokerala ไม่สำเร็จ "
-                        "ลองใหม่อีกครั้งในอีกสักครู่นะครับ"
-                    ),
-                    color=0xE74C3C,
+                embed=make_embed(
+                    self.bot,
+                    "Horoscope",
+                    title="😅 ดวงวันนี้ยังเดินทางมาไม่ถึง",
+                    description="Prokerala เงียบไปนิดนึง รอสักครู่แล้วลองเปิดคำทำนายใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
                 ),
                 ephemeral=True,
             )
@@ -150,10 +145,7 @@ class HoroscopeCog(commands.Cog):
             ),
             color=daily_color.embed_color if daily_color else 0x8E44AD,
         )
-        embed.set_author(
-            name=f"{emoji} ดวงรายวันของคุณมาแล้ว",
-            icon_url=self.avatar_url,
-        )
+        set_embed_author(embed, self.bot, f"Horoscope • {emoji} {sign_name}")
         embed.add_field(
             name="💕 ความรัก",
             value=truncate_field(reading["love"]),
@@ -188,7 +180,7 @@ class HoroscopeCog(commands.Cog):
             name="✨ ข้อความถึงคุณ",
             value=(
                 "คำทำนายนี้มีไว้เพิ่มสีสันและกำลังใจ "
-                "ใช้วิจารณญาณประกอบการตัดสินใจด้วยนะครับ"
+                "อ่านเอาสนุกและเก็บไว้เป็นกำลังใจของวันนี้ก็พอนะ"
             ),
             inline=False,
         )
@@ -207,13 +199,12 @@ class HoroscopeCog(commands.Cog):
         except DailyColorServiceError:
             logger.exception("Daily color request failed")
             await interaction.followup.send(
-                embed=discord.Embed(
-                    title="😅 เช็กสีประจำวันให้ไม่ได้ในตอนนี้",
-                    description=(
-                        "ตอนนี้ผมติดต่อแหล่งข้อมูลไม่สำเร็จ "
-                        "ลองใหม่อีกครั้งในอีกสักครู่นะครับ"
-                    ),
-                    color=0xE74C3C,
+                embed=make_embed(
+                    self.bot,
+                    "Lucky Color",
+                    title="😅 สียังมาไม่ถึง",
+                    description="แหล่งข้อมูลเงียบไปนิดนึง รอสักครู่แล้วลองใหม่อีกทีนะ",
+                    color=EmbedColor.ERROR,
                 ),
                 ephemeral=True,
             )
@@ -227,10 +218,7 @@ class HoroscopeCog(commands.Cog):
             ),
             color=daily_color.embed_color,
         )
-        embed.set_author(
-            name="👕 วันนี้ใส่สีอะไรดี?",
-            icon_url=self.avatar_url,
-        )
+        set_embed_author(embed, self.bot, "Lucky Color • วันนี้ใส่สีอะไรดี?")
         embed.add_field(
             name="🌐 ชื่อสีจากต้นฉบับ",
             value=daily_color.source_color_name,
@@ -240,7 +228,7 @@ class HoroscopeCog(commands.Cog):
             name="✨ หยิบมาใช้ได้ง่าย ๆ",
             value=(
                 "ไม่มีเสื้อสีนี้ก็ไม่เป็นไร ลองใช้กับกระเป๋า "
-                "เครื่องประดับ หรือของชิ้นเล็ก ๆ แทนได้นะครับ"
+                "เครื่องประดับ หรือของชิ้นเล็ก ๆ แทนก็ได้นะ"
             ),
             inline=False,
         )
@@ -253,7 +241,7 @@ class HoroscopeCog(commands.Cog):
             name="🔮 หมายเหตุ",
             value=(
                 "สีประจำวันเป็นธรรมเนียมและความเชื่อส่วนบุคคล "
-                "ใช้เพื่อเพิ่มสีสันและความมั่นใจในแต่ละวันนะครับ"
+                "หยิบมาเพิ่มสีสันและความมั่นใจให้วันนี้ก็พอ"
             ),
             inline=False,
         )

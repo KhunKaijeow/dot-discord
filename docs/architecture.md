@@ -31,6 +31,7 @@ main.py
 | `main.py` | Entry point และ startup validation |
 | `src/config.py` | อ่าน environment variables ผ่าน `python-dotenv` |
 | `src/bot.py` | ประกอบ bot, โหลด extensions, `/ask`, `/reset-chat` และ error handler กลาง |
+| `src/ui.py` | ชุดสี, author treatment และ factory สำหรับ Embed แบบไม่มี footer |
 | `src/cogs/` | Discord UI, Slash Commands และ background workers แยกตามฟีเจอร์ |
 | `src/services/` | API clients, market data, chart, translation และ SQLite repository |
 | `tests/` | Unit tests สำหรับ persistence, validation, permission และ rate limit |
@@ -104,6 +105,14 @@ workers เริ่มเมื่อ Cog ถูกโหลดและรอ 
 - `/digest setup`, `/digest disable`, `/settings` ต้องมี `Manage Server`
 - Reminder, Price Alert และ Playlist ตรวจ ownership ตอนอ่านหรือลบข้อมูล
 - `.env`, SQLite และ runtime JSON ถูก ignore และต้องไม่ commit ขึ้น repository
+
+## รูปแบบ Embed และภาษา
+
+- ใช้ `EmbedColor` จาก `src/ui.py` แทนการกระจายค่าสีใหม่ในแต่ละ Cog
+- ใช้ `make_embed` สำหรับการ์ดทั่วไป หรือ `set_embed_author` เมื่อ Embed ต้องสร้างเอง
+- Embed ของ Javis ใช้ author รูปแบบ `Javis • <หมวด>` และไม่ใส่ footer
+- แหล่งข้อมูลที่จำเป็นต้องแสดงให้วางใน field `📡 ข้อมูลจาก` แทน footer
+- ข้อความสำหรับผู้ใช้ควรสั้น เป็นกันเอง บอกสิ่งที่เกิดขึ้นและสิ่งที่ทำต่อได้ทันที
 
 ## เพิ่ม Slash Command ใหม่
 

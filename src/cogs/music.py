@@ -11,7 +11,9 @@ import shlex
 import shutil
 from typing import Any
 from urllib.parse import urlparse, parse_qs
+
 from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+from ..ui import EmbedColor, make_embed, set_embed_author
 
 import aiohttp
 import discord
@@ -162,7 +164,7 @@ async def _resolve_youtube_playlist(url: str, requester: discord.abc.User) -> li
         )
     except Exception as e:
         logger.exception("YouTube playlist extraction failed")
-        raise MusicError("ไม่สามารถดึงข้อมูลเพลงจาก YouTube Playlist ได้ครับ") from e
+        raise MusicError("อ่าน YouTube Playlist ไม่สำเร็จ ลองใหม่อีกทีนะ") from e
 
     entries = data.get("entries") or []
     tracks = []
@@ -181,7 +183,7 @@ async def _resolve_youtube_playlist(url: str, requester: discord.abc.User) -> li
             ))
             
     if not tracks:
-        raise MusicError("ไม่พบเพลงใน YouTube Playlist นี้ครับ")
+        raise MusicError("YouTube Playlist นี้ยังไม่มีเพลงที่เปิดได้นะ")
         
     return tracks
 
@@ -190,7 +192,7 @@ async def _resolve_spotify_playlist(playlist_id: str, requester: discord.abc.Use
     if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
         raise MusicError(
             "บอทไม่ได้ตั้งค่าตัวแปร `SPOTIFY_CLIENT_ID` และ `SPOTIFY_CLIENT_SECRET` ในไฟล์ `.env` "
-            "ทำให้ไม่สามารถโหลดเพลงจาก Spotify Playlist ได้ครับ"
+            "เลยยังโหลด Spotify Playlist ไม่ได้นะ"
         )
         
     token_url = "https://accounts.spotify.com/api/token"
@@ -220,7 +222,7 @@ async def _resolve_spotify_playlist(playlist_id: str, requester: discord.abc.Use
             }
             async with session.get(tracks_url, headers=playlist_headers, params=params) as tracks_resp:
                 if tracks_resp.status != 200:
-                    raise MusicError("ไม่สามารถดึงข้อมูลเพลงจาก Spotify Playlist ได้")
+                    raise MusicError("อ่าน Spotify Playlist ไม่สำเร็จ ลองใหม่อีกทีนะ")
                 tracks_data = await tracks_resp.json()
     except MusicError:
         raise
@@ -250,7 +252,7 @@ async def _resolve_spotify_playlist(playlist_id: str, requester: discord.abc.Use
             ))
             
     if not tracks:
-        raise MusicError("ไม่พบเพลงใน Spotify Playlist นี้ครับ")
+        raise MusicError("Spotify Playlist นี้ยังไม่มีเพลงที่เปิดได้นะ")
         
     return tracks
 
@@ -259,7 +261,7 @@ async def resolve_tracks(query: str, requester: discord.abc.User) -> list[Track]
     """Resolve text, YouTube URL (video/playlist), or Spotify URL (track/playlist) to a list of Tracks."""
     query = query.strip()
     if not query:
-        raise MusicError("กรุณาใส่ชื่อเพลงหรือลิงก์")
+        raise MusicError("ส่งชื่อเพลงหรือลิงก์มาให้ผมหน่อยนะ")
 
     parsed = urlparse(query)
     host = parsed.hostname.lower().removeprefix("www.") if parsed.hostname else ""
@@ -277,7 +279,7 @@ async def resolve_tracks(query: str, requester: discord.abc.User) -> list[Track]
                         response.raise_for_status()
                         clean_url = str(response.url)
             except Exception as e:
-                raise MusicError("ไม่สามารถถอดลิงก์ย่อ spotify.link ได้") from e
+                raise MusicError("เปิดลิงก์ย่อ Spotify ไม่สำเร็จ ลองใช้ลิงก์เต็มแทนนะ") from e
                 
             parsed = urlparse(clean_url)
             host = parsed.hostname.lower().removeprefix("www.") if parsed.hostname else ""
@@ -457,7 +459,7 @@ class GuildMusicState:
                 self.guild_id,
             )
             await loading_message.edit(
-                content="😅 เตรียมเพลงไม่สำเร็จ ลองเลือกเพลงอื่นอีกครั้งนะครับ"
+                content="😅 เตรียมเพลงไม่สำเร็จ ลองเลือกเพลงอื่นอีกทีนะ"
             )
             return False
 
@@ -469,15 +471,13 @@ class GuildMusicState:
         )
         embed = discord.Embed(
             description=f"🎵 **[{source.title}]({track.youtube_url})**",
-            color=0x7d5fff,
+            color=EmbedColor.MUSIC,
         )
-        avatar = self.bot.user.display_avatar.url if self.bot.user else None
-        embed.set_author(name="กำลังเล่น • Now Playing", icon_url=avatar)
+        set_embed_author(embed, self.bot, "Music • กำลังเล่น")
         if source.thumbnail:
             embed.set_thumbnail(url=source.thumbnail)
         embed.add_field(name="⏱️ ความยาวเพลง", value=f"`{duration_text}`", inline=True)
         embed.add_field(name="🔎 แหล่งคำขอ", value=f"`{track.requested_via}`", inline=True)
-        embed.set_footer(text="ควบคุมการเล่นเพลงได้ด้วยปุ่มกดด้านล่าง")
         await loading_message.edit(
             content=None,
             embed=embed,
@@ -523,12 +523,13 @@ class GuildMusicState:
             self.voice_client = None
 
         if self.text_channel:
-            embed = discord.Embed(
-                title="👋 สิ้นสุดการเล่นเพลง",
-                description="เพลงในคิวหมดแล้ว บอทออกจากห้องเสียงเนื่องจากไม่มีการใช้งานต่อครับ",
-                color=0x718093,
+            embed = make_embed(
+                self.bot,
+                "Music",
+                title="👋 คิวหมดแล้วนะ",
+                description="เพลงจบครบทุกเพลงแล้ว ผมออกจากห้องเสียงให้เรียบร้อย ไว้เปิดเพลงด้วยกันใหม่!",
+                color=EmbedColor.INFO,
             )
-            embed.set_footer(text="เรียกใช้งานใหม่ด้วย /play ได้ทุกเมื่อครับ")
             await self.text_channel.send(embed=embed)
 
     async def stop(self) -> None:
@@ -581,12 +582,12 @@ class MusicControlView(discord.ui.View):
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or not voice.is_playing():
             await interaction.response.send_message(
-                "🎵 ตอนนี้ยังไม่มีเพลงให้พักครับ",
+                "🎵 ตอนนี้ยังไม่มีเพลงให้พักนะ",
                 ephemeral=True,
             )
             return
         voice.pause()
-        await interaction.response.send_message("⏸️ พักเพลงให้แล้วครับ")
+        await interaction.response.send_message("⏸️ พักเพลงให้แล้วนะ")
 
     @discord.ui.button(
         label="Resume",
@@ -604,12 +605,12 @@ class MusicControlView(discord.ui.View):
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or not voice.is_paused():
             await interaction.response.send_message(
-                "▶️ เพลงไม่ได้พักอยู่ครับ",
+                "▶️ เพลงนี้ไม่ได้พักอยู่นะ",
                 ephemeral=True,
             )
             return
         voice.resume()
-        await interaction.response.send_message("▶️ เล่นเพลงต่อให้แล้วครับ")
+        await interaction.response.send_message("▶️ เล่นต่อให้แล้ว ไปฟังกันเลย")
 
     @discord.ui.button(label="Skip", emoji="⏭️")
     async def skip(
@@ -623,12 +624,12 @@ class MusicControlView(discord.ui.View):
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or (not voice.is_playing() and not voice.is_paused()):
             await interaction.response.send_message(
-                "🎵 ตอนนี้ยังไม่มีเพลงให้ข้ามครับ",
+                "🎵 ตอนนี้ยังไม่มีเพลงให้ข้ามนะ",
                 ephemeral=True,
             )
             return
         get_state(self.bot, self.guild_id).skip()
-        await interaction.response.send_message("⏭️ ข้ามเพลงให้แล้วครับ")
+        await interaction.response.send_message("⏭️ ข้ามเพลงให้แล้วนะ")
 
     @discord.ui.button(
         label="Stop",
@@ -646,7 +647,7 @@ class MusicControlView(discord.ui.View):
         state = get_state(self.bot, self.guild_id)
         await state.stop()
         await interaction.response.send_message(
-            "👋 หยุดเพลง ล้างคิว และออกจากห้องให้แล้วครับ"
+            "👋 หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะ"
         )
 
 
@@ -670,7 +671,7 @@ class MusicCog(commands.Cog):
             return
         if not interaction.guild or not interaction.user.voice:
             await interaction.followup.send(
-                "🎧 เข้าห้องเสียงก่อน แล้วเรียก `/play` อีกครั้งนะครับ",
+                "🎧 เข้าห้องเสียงก่อน แล้วเรียก `/play` ใหม่อีกทีนะ",
                 ephemeral=True,
             )
             return
@@ -696,7 +697,7 @@ class MusicCog(commands.Cog):
         except discord.DiscordException:
             logger.exception("Could not connect to voice channel")
             await interaction.followup.send(
-                "🎧 เข้าห้องเสียงไม่สำเร็จ กรุณาตรวจสิทธิ์ Connect/Speak",
+                "🎧 เข้าห้องเสียงไม่สำเร็จ ลองเช็กสิทธิ์ Connect/Speak ให้หน่อยนะ",
                 ephemeral=True,
             )
             return
@@ -712,22 +713,24 @@ class MusicCog(commands.Cog):
             await state.enqueue(track, voice_client, interaction.channel)
             
         if len(tracks) > 1:
-            embed = discord.Embed(
-                title="📥 โหลดเพลย์ลิสต์สำเร็จ",
-                description=f"โหลดเพลงจากเพลย์ลิสต์จำนวน `{len(tracks)}` เพลงเข้าสู่คิวเรียบร้อยแล้วครับ",
-                color=0x2ecc71 if is_playing_now else 0x3498db
+            embed = make_embed(
+                self.bot,
+                "Music",
+                title="🎶 เพลย์ลิสต์พร้อมแล้ว",
+                description=f"ใส่เพลงเข้าคิวให้ครบ `{len(tracks)}` เพลงแล้ว ไปฟังกันเลย!",
+                color=EmbedColor.SUCCESS if is_playing_now else EmbedColor.INFO,
             )
-            embed.set_footer(text="ใช้ /queue เพื่อดูเพลงทั้งหมดในคิว")
             await interaction.followup.send(embed=embed)
         else:
             track = tracks[0]
             embed = discord.Embed(
                 description=f"🎵 **[{track.title}]({track.youtube_url})**",
-                color=0x2ecc71 if is_playing_now else 0x3498db,
+                color=EmbedColor.SUCCESS if is_playing_now else EmbedColor.INFO,
             )
-            embed.set_author(
-                name="กำลังเริ่มเล่นเพลง" if is_playing_now else "เพิ่มเพลงเข้าคิวแล้ว",
-                icon_url=self.bot.user.display_avatar.url if self.bot.user else None
+            set_embed_author(
+                embed,
+                self.bot,
+                "Music • กำลังเล่น" if is_playing_now else "Music • เข้าคิวแล้ว",
             )
             embed.add_field(name="🔎 แหล่งคำขอ", value=f"`{track.requested_via}`", inline=True)
             if not is_playing_now:
@@ -742,12 +745,12 @@ class MusicCog(commands.Cog):
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or (not voice.is_playing() and not voice.is_paused()):
             await interaction.response.send_message(
-                "🎵 ตอนนี้ยังไม่มีเพลงให้ข้ามครับ",
+                "🎵 ตอนนี้ยังไม่มีเพลงให้ข้ามนะ",
                 ephemeral=True,
             )
             return
         get_state(self.bot, interaction.guild.id).skip()
-        await interaction.response.send_message("⏭️ ข้ามเพลงให้แล้วครับ")
+        await interaction.response.send_message("⏭️ ข้ามเพลงให้แล้วนะ")
 
     @app_commands.command(name="pause", description="พักเพลงชั่วคราว")
     async def pause(self, interaction: discord.Interaction) -> None:
@@ -757,12 +760,12 @@ class MusicCog(commands.Cog):
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or not voice.is_playing():
             await interaction.response.send_message(
-                "🎵 ตอนนี้ยังไม่มีเพลงให้พักครับ",
+                "🎵 ตอนนี้ยังไม่มีเพลงให้พักนะ",
                 ephemeral=True,
             )
             return
         voice.pause()
-        await interaction.response.send_message("⏸️ พักเพลงให้แล้วครับ")
+        await interaction.response.send_message("⏸️ พักเพลงให้แล้วนะ")
 
     @app_commands.command(name="resume", description="เล่นเพลงที่พักไว้ต่อ")
     async def resume(self, interaction: discord.Interaction) -> None:
@@ -772,12 +775,12 @@ class MusicCog(commands.Cog):
         voice = interaction.guild.voice_client if interaction.guild else None
         if not voice or not voice.is_paused():
             await interaction.response.send_message(
-                "▶️ เพลงไม่ได้พักอยู่ครับ",
+                "▶️ เพลงนี้ไม่ได้พักอยู่นะ",
                 ephemeral=True,
             )
             return
         voice.resume()
-        await interaction.response.send_message("▶️ เล่นเพลงต่อให้แล้วครับ")
+        await interaction.response.send_message("▶️ เล่นต่อให้แล้ว ไปฟังกันเลย")
 
     @app_commands.command(name="queue", description="แสดงคิวเพลงปัจจุบัน")
     async def queue_command(self, interaction: discord.Interaction) -> None:
@@ -786,25 +789,28 @@ class MusicCog(commands.Cog):
         state = get_state(self.bot, interaction.guild.id)
         if not state.current and not state.queue:
             await interaction.response.send_message(
-                "📭 คิวเพลงยังว่างอยู่ครับ",
+                "📭 คิวเพลงยังว่างอยู่ ลองเพิ่มเพลงที่ชอบเข้ามาได้เลย",
                 ephemeral=True,
             )
             return
 
-        embed = discord.Embed(
-            title="🎶 รายการคิวเพลง",
-            color=0x7d5fff
+        embed = make_embed(
+            self.bot,
+            "Music",
+            title="🎶 คิวเพลงของเรา",
+            description=f"มีเพลงรออยู่ `{len(state.queue)}` เพลง",
+            color=EmbedColor.MUSIC,
         )
         if state.current:
             embed.add_field(
-                name="🔊 กำลังเล่นขณะนี้",
+                name="▶️ ตอนนี้กำลังเล่น",
                 value=f"▶️ **[{state.current.title}]({state.current.youtube_url})**",
                 inline=False,
             )
         else:
             embed.add_field(
-                name="🔊 กำลังเล่นขณะนี้",
-                value="*ไม่มีการเล่นเพลงในขณะนี้*",
+                name="▶️ ตอนนี้กำลังเล่น",
+                value="*ยังไม่มีเพลงที่กำลังเล่น*",
                 inline=False,
             )
         
@@ -816,14 +822,10 @@ class MusicCog(commands.Cog):
             queue_text += f"\n*และอีก {len(state.queue) - 10} เพลงในคิว*"
             
         embed.add_field(
-            name="📋 รายการเพลงถัดไป",
-            value=queue_text or "*คิวว่างเปล่า*",
+            name="📋 เพลงถัดไป",
+            value=queue_text or "*ยังไม่มีเพลงรออยู่*",
             inline=False,
         )
-        if len(state.queue) > 0:
-            embed.set_footer(text=f"ทั้งหมด {len(state.queue)} เพลงในคิว • ใช้ /skip เพื่อข้ามเพลง")
-        else:
-            embed.set_footer(text="ใช้ /play [ชื่อเพลง] เพื่อเพิ่มเพลงลงในคิว")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="now-playing", description="ดูเพลงที่กำลังเล่นและสถานะการเล่น")
@@ -837,16 +839,16 @@ class MusicCog(commands.Cog):
         loop_map = {"off": "❌ ปิด", "track": "🔂 เพลงปัจจุบัน", "queue": "🔁 ทั้งคิว"}
         loop_text = loop_map.get(state.loop_mode, state.loop_mode)
         
-        embed = discord.Embed(
-            title="🎵 กำลังเล่นขณะนี้",
+        embed = make_embed(
+            self.bot,
+            "Music",
+            title="🎵 เพลงที่กำลังเล่น",
             description=f"🎵 **[{state.current.title}]({state.current.youtube_url})**",
-            color=0x7d5fff
+            color=EmbedColor.MUSIC,
         )
         embed.add_field(name="🔊 ระดับเสียง", value=f"`{int(state.volume * 100)}%`", inline=True)
         embed.add_field(name="🔁 โหมดเล่นซ้ำ", value=f"`{loop_text}`", inline=True)
         embed.add_field(name="🔎 แหล่งคำขอ", value=f"`{state.current.requested_via}`", inline=True)
-        embed.set_footer(text="ควบคุมการเล่นเพลงได้ด้วยปุ่มกดในห้องส่งข้อความ")
-        
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="volume", description="ปรับระดับเสียง 0–100%")
@@ -929,13 +931,13 @@ class MusicCog(commands.Cog):
             return
         if not interaction.guild or not interaction.guild.voice_client:
             await interaction.response.send_message(
-                "🎧 ตอนนี้บอทไม่ได้อยู่ในห้องเสียงครับ",
+                "🎧 ตอนนี้ผมยังไม่ได้อยู่ในห้องเสียงนะ",
                 ephemeral=True,
             )
             return
         await get_state(self.bot, interaction.guild.id).stop()
         await interaction.response.send_message(
-            "👋 หยุดเพลง ล้างคิว และออกจากห้องให้แล้วครับ"
+            "👋 หยุดเพลง ล้างคิว และออกจากห้องให้แล้วนะ"
         )
 
     @app_commands.command(name="playlist-save", description="บันทึกเพลงในคิวปัจจุบันเป็นเพลย์ลิสต์ส่วนตัว")
@@ -946,7 +948,7 @@ class MusicCog(commands.Cog):
         
         name = name.strip()
         if not 1 <= len(name) <= 50:
-            await interaction.response.send_message("❌ ชื่อเพลย์ลิสต์ต้องมีความยาว 1-50 ตัวอักษรครับ", ephemeral=True)
+            await interaction.response.send_message("ชื่อเพลย์ลิสต์ใช้ได้ 1–50 ตัวอักษรนะ", ephemeral=True)
             return
 
         state = get_state(self.bot, interaction.guild.id)
@@ -957,11 +959,11 @@ class MusicCog(commands.Cog):
         tracks_to_save.extend(list(state.queue))
         
         if not tracks_to_save:
-            await interaction.response.send_message("❌ ไม่มีเพลงกำลังเล่นหรืออยู่ในคิวที่จะบันทึกได้ครับ", ephemeral=True)
+            await interaction.response.send_message("ยังไม่มีเพลงให้เก็บ เปิดเพลงหรือเพิ่มคิวก่อนนะ", ephemeral=True)
             return
             
         if len(tracks_to_save) > 100:
-            await interaction.response.send_message("❌ บันทึกได้สูงสุด 100 เพลงต่อเพลย์ลิสต์ครับ คิวปัจจุบันยาวเกินไป", ephemeral=True)
+            await interaction.response.send_message("หนึ่งเพลย์ลิสต์เก็บได้ 100 เพลง ตอนนี้คิวยาวเกินไปนิดนึงนะ", ephemeral=True)
             return
 
         await interaction.response.defer(thinking=True)
@@ -974,7 +976,7 @@ class MusicCog(commands.Cog):
             is_overwrite = any(p["name"].lower() == name.lower() for p in existing_playlists)
             
             if playlist_count >= 10 and not is_overwrite:
-                await interaction.followup.send("❌ คุณบันทึกเพลย์ลิสต์ครบ 10 รายการแล้วครับ กรุณาลบอันเก่าออกก่อน")
+                await interaction.followup.send("เก็บครบ 10 เพลย์ลิสต์แล้ว ลบอันเก่าสักรายการก่อนนะ")
                 return
 
             track_tuples = [(t.title, t.youtube_url, t.requested_via) for t in tracks_to_save]
@@ -982,17 +984,21 @@ class MusicCog(commands.Cog):
             await asyncio.to_thread(self.bot.database.save_playlist, user_id, name, track_tuples)
             
             action_text = "เขียนทับ" if is_overwrite else "บันทึก"
-            embed = discord.Embed(
-                title="💾 บันทึกเพลย์ลิสต์สำเร็จ",
-                description=f"**ชื่อเพลย์ลิสต์:** `{name}`\n**จำนวนเพลง:** `{len(track_tuples)}` เพลง ({action_text})",
-                color=0x2ecc71
+            embed = make_embed(
+                self.bot,
+                "Music • Playlist",
+                title="💾 เก็บเพลย์ลิสต์ไว้ให้แล้ว",
+                description=(
+                    f"**ชื่อ** `{name}`\n"
+                    f"**จำนวน** `{len(track_tuples)}` เพลง • {action_text}เรียบร้อย"
+                ),
+                color=EmbedColor.SUCCESS,
             )
-            embed.set_footer(text="เรียกใช้งานด้วย /playlist-load เพื่อเล่นเพลย์ลิสต์นี้ได้ทุกเวลา")
             await interaction.followup.send(embed=embed)
             
         except Exception as e:
             logger.exception("Error saving playlist")
-            await interaction.followup.send("😅 ขออภัย เกิดข้อผิดพลาดในการบันทึกเพลย์ลิสต์ ลองใหม่อีกครั้งภายหลังครับ")
+            await interaction.followup.send("😅 เก็บเพลย์ลิสต์ไม่สำเร็จ ลองใหม่อีกทีนะ")
 
     @app_commands.command(name="playlist-load", description="โหลดเพลงจากเพลย์ลิสต์ส่วนตัวเข้าสู่คิว")
     @app_commands.describe(name="ชื่อเพลย์ลิสต์ที่บันทึกไว้")
@@ -1002,7 +1008,7 @@ class MusicCog(commands.Cog):
         
         if not interaction.user.voice:
             await interaction.response.send_message(
-                "🎧 เข้าห้องเสียงก่อน แล้วเรียก `/playlist-load` อีกครั้งนะครับ",
+                "🎧 เข้าห้องเสียงก่อน แล้วเรียก `/playlist-load` ใหม่อีกทีนะ",
                 ephemeral=True,
             )
             return
@@ -1015,7 +1021,7 @@ class MusicCog(commands.Cog):
             db_tracks = await asyncio.to_thread(self.bot.database.load_playlist, user_id, name)
             
             if not db_tracks:
-                await interaction.followup.send(f"❌ ไม่พบเพลย์ลิสต์ชื่อ `{name}` ของคุณครับ (หรือไม่มีเพลงในเพลย์ลิสต์)")
+                await interaction.followup.send(f"หาเพลย์ลิสต์ `{name}` ไม่เจอ ลองเช็กชื่ออีกทีนะ")
                 return
 
             voice_channel = interaction.user.voice.channel
@@ -1024,7 +1030,7 @@ class MusicCog(commands.Cog):
             if voice_client and voice_client.channel != voice_channel and (
                 voice_client.is_playing() or voice_client.is_paused()
             ):
-                await interaction.followup.send("❌ บอทกำลังใช้งานในห้องเสียงอื่นอยู่ครับ")
+                await interaction.followup.send("ตอนนี้ผมเปิดเพลงอยู่อีกห้องนึงนะ")
                 return
 
             try:
@@ -1034,7 +1040,7 @@ class MusicCog(commands.Cog):
                     await voice_client.move_to(voice_channel)
             except discord.DiscordException:
                 logger.exception("Could not connect to voice channel")
-                await interaction.followup.send("🎧 เข้าห้องเสียงไม่สำเร็จ กรุณาตรวจสิทธิ์ Connect/Speak")
+                await interaction.followup.send("🎧 เข้าห้องเสียงไม่สำเร็จ ลองเช็กสิทธิ์ Connect/Speak ให้หน่อยนะ")
                 return
 
             state = get_state(self.bot, interaction.guild.id)
@@ -1050,17 +1056,18 @@ class MusicCog(commands.Cog):
                 await state.enqueue(track, voice_client, interaction.channel)
                 loaded_count += 1
 
-            embed = discord.Embed(
-                title="📥 โหลดเพลย์ลิสต์สำเร็จ",
-                description=f"โหลดเพลงจากเพลย์ลิสต์ `{name}` จำนวน `{loaded_count}` เพลงเข้าสู่คิวเรียบร้อยแล้วครับ",
-                color=0x7d5fff
+            embed = make_embed(
+                self.bot,
+                "Music • Playlist",
+                title="🎶 โหลดเพลย์ลิสต์ให้แล้ว",
+                description=f"เพลงจาก `{name}` เข้าแถวรอครบ `{loaded_count}` เพลงแล้ว ไปฟังกันเลย!",
+                color=EmbedColor.MUSIC,
             )
-            embed.set_footer(text="ใช้ /queue เพื่อดูเพลงทั้งหมดในคิว")
             await interaction.followup.send(embed=embed)
 
         except Exception as e:
             logger.exception("Error loading playlist")
-            await interaction.followup.send("😅 ขออภัย เกิดข้อผิดพลาดในการโหลดเพลย์ลิสต์ ลองใหม่อีกครั้งภายหลังครับ")
+            await interaction.followup.send("😅 โหลดเพลย์ลิสต์สะดุดนิดหน่อย ลองใหม่อีกทีนะ")
 
     @app_commands.command(name="playlist-list", description="แสดงรายชื่อเพลย์ลิสต์ส่วนตัวทั้งหมดของคุณ")
     async def playlist_list(self, interaction: discord.Interaction) -> None:
@@ -1070,16 +1077,22 @@ class MusicCog(commands.Cog):
             playlists = await asyncio.to_thread(self.bot.database.list_playlists, user_id)
             
             if not playlists:
-                embed = discord.Embed(
-                    description="📭 **คุณยังไม่มีเพลย์ลิสต์ส่วนตัวเลยครับ**\nใช้ `/playlist-save [ชื่อ]` เพื่อเซฟเพลงจากคิวปัจจุบันได้ครับ",
-                    color=0x7d5fff
+                embed = make_embed(
+                    self.bot,
+                    "Music • Playlist",
+                    title="📭 ชั้นวางเพลงยังว่างอยู่",
+                    description="เปิดเพลงที่ชอบแล้วใช้ `/playlist-save` เก็บไว้ฟังรอบหน้าได้เลย",
+                    color=EmbedColor.INFO,
                 )
                 await interaction.followup.send(embed=embed)
                 return
 
-            embed = discord.Embed(
-                title="💾 คลังเพลย์ลิสต์ส่วนตัวของคุณ",
-                color=0x7d5fff
+            embed = make_embed(
+                self.bot,
+                "Music • Playlist",
+                title="💾 เพลย์ลิสต์ที่เก็บไว้",
+                description=f"มีทั้งหมด `{len(playlists)}/10` เพลย์ลิสต์",
+                color=EmbedColor.MUSIC,
             )
             
             desc_items = []
@@ -1094,13 +1107,16 @@ class MusicCog(commands.Cog):
                     f"`{i:02d}` **{p['name']}** — `{p['track_count']}` เพลง (สร้างเมื่อ: {date_str})"
                 )
             
-            embed.description = "\n".join(desc_items)
-            embed.set_footer(text=f"ทั้งหมด {len(playlists)}/10 เพลย์ลิสต์ • โหลดใช้ด้วย /playlist-load")
+            embed.add_field(
+                name="🎧 เลือกฟังได้เลย",
+                value="\n".join(desc_items),
+                inline=False,
+            )
             await interaction.followup.send(embed=embed)
             
         except Exception as e:
             logger.exception("Error listing playlists")
-            await interaction.followup.send("😅 ขออภัย เกิดข้อผิดพลาดในการดึงรายการเพลย์ลิสต์ ลองใหม่อีกครั้งภายหลังครับ")
+            await interaction.followup.send("😅 เปิดรายการเพลย์ลิสต์ไม่สำเร็จ ลองใหม่อีกทีนะ")
 
     @app_commands.command(name="playlist-delete", description="ลบเพลย์ลิสต์ส่วนตัวของคุณ")
     @app_commands.describe(name="ชื่อเพลย์ลิสต์ที่ต้องการลบ")
@@ -1112,18 +1128,20 @@ class MusicCog(commands.Cog):
             deleted = await asyncio.to_thread(self.bot.database.delete_playlist, user_id, name)
             
             if deleted:
-                embed = discord.Embed(
-                    title="🗑️ ลบเพลย์ลิสต์สำเร็จ",
-                    description=f"ลบเพลย์ลิสต์ชื่อ `{name}` เรียบร้อยแล้วครับ",
-                    color=0xe74c3c
+                embed = make_embed(
+                    self.bot,
+                    "Music • Playlist",
+                    title="🗑️ เอาเพลย์ลิสต์ออกแล้ว",
+                    description=f"ลบ `{name}` ออกจากชั้นวางให้เรียบร้อยแล้วนะ",
+                    color=EmbedColor.SUCCESS,
                 )
                 await interaction.followup.send(embed=embed)
             else:
-                await interaction.followup.send(f"❌ ไม่พบเพลย์ลิสต์ชื่อ `{name}` ของคุณครับ")
+                await interaction.followup.send(f"หาเพลย์ลิสต์ `{name}` ไม่เจอ ลองเช็กชื่ออีกทีนะ")
                 
         except Exception as e:
             logger.exception("Error deleting playlist")
-            await interaction.followup.send("😅 ขออภัย เกิดข้อผิดพลาดในการลบเพลย์ลิสต์ ลองใหม่อีกครั้งภายหลังครับ")
+            await interaction.followup.send("😅 ลบเพลย์ลิสต์ไม่สำเร็จ ลองใหม่อีกทีนะ")
 
 
 def load_opus() -> None:

@@ -11,6 +11,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from ..ui import EmbedColor, make_embed
+
 
 logger = logging.getLogger("javis.ai_tools")
 
@@ -48,7 +50,7 @@ class AIToolsCog(commands.Cog):
         instruction: str,
     ) -> None:
         if self._rate_limited(interaction.user.id):
-            await interaction.response.send_message("ใช้งาน AI ได้สูงสุด 3 ครั้งต่อนาที กรุณารอสักครู่", ephemeral=True)
+            await interaction.response.send_message("พักหายใจแป๊บนึงนะ ใช้ AI ได้ 3 ครั้งต่อนาที", ephemeral=True)
             return
         content = (message.content or "").strip()
         if not content:
@@ -67,15 +69,21 @@ class AIToolsCog(commands.Cog):
             )
         except TimeoutError:
             logger.warning("AI message tool timed out for user %s", interaction.user.id)
-            await interaction.followup.send("AI ไม่สามารถประมวลผลได้ในขณะนี้", ephemeral=True)
+            await interaction.followup.send("AI ใช้เวลานานไปนิด ลองใหม่อีกทีนะ", ephemeral=True)
             return
         except Exception:
             logger.exception("AI message tool failed")
-            await interaction.followup.send("AI ไม่สามารถประมวลผลได้ในขณะนี้", ephemeral=True)
+            await interaction.followup.send("อุ๊ปส์ AI สะดุดนิดหน่อย ลองใหม่อีกทีนะ", ephemeral=True)
             return
         answer = (answer or "").strip()[:1900]
+        embed = make_embed(
+            self.bot,
+            "AI Message Tools",
+            description=answer,
+            color=EmbedColor.PRIMARY,
+        )
         await interaction.followup.send(
-            embed=discord.Embed(description=answer, color=0x1A73E8),
+            embed=embed,
             ephemeral=True, allowed_mentions=discord.AllowedMentions.none(),
         )
 

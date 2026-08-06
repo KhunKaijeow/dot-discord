@@ -21,6 +21,7 @@ def format_large_number(val):
 
 from datetime import datetime
 from ..services.chart_generator import generate_price_chart
+from ..ui import EmbedColor, make_embed, set_embed_author
 
 class CryptoCog(commands.Cog):
     def __init__(self, bot):
@@ -94,7 +95,12 @@ class CryptoCog(commands.Cog):
                             color=color,
                             timestamp=datetime.utcnow()
                         )
-                        embed.set_footer(text="กระดานเทรด: Binance | แหล่งข้อมูล: Binance API")
+                        set_embed_author(embed, self.bot, "Crypto • อัปเดตล่าสุด")
+                        embed.add_field(
+                            name="📡 ข้อมูลจาก",
+                            value="Binance API • คู่เทรด `USDT`",
+                            inline=False,
+                        )
 
                         # Parse historical data for chart
                         dates = []
@@ -125,30 +131,33 @@ class CryptoCog(commands.Cog):
                         else:
                             await interaction.followup.send(embed=embed)
                     elif response.status == 400:
-                        embed = discord.Embed(
+                        embed = make_embed(
+                            self.bot,
+                            "Crypto",
                             title="🔎 ยังไม่เจอเหรียญนี้",
-                            description=f"ผมหาเหรียญ **{symbol}** หรือคู่เทรด USDT บน Binance ไม่เจอครับ\n"
+                            description=f"ผมหาเหรียญ **{symbol}** หรือคู่เทรด USDT บน Binance ไม่เจอ\n"
                                         f"*ลองเช็กตัวย่ออีกครั้ง เช่น BTC, ETH, SOL หรือ DOGE*",
-                            color=0xe74c3c
+                            color=EmbedColor.WARNING,
                         )
-                        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
                         await interaction.followup.send(embed=embed)
                     else:
-                        embed = discord.Embed(
-                            title="😅 เช็กราคาให้ไม่ได้ในตอนนี้",
-                            description=f"Binance ตอบกลับไม่สำเร็จ (รหัส {response.status}) ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
-                            color=0xe74c3c
+                        embed = make_embed(
+                            self.bot,
+                            "Crypto",
+                            title="😅 ราคายังมาไม่ถึง",
+                            description=f"Binance ตอบกลับด้วยรหัส `{response.status}` รอสักครู่แล้วลองใหม่อีกทีนะ",
+                            color=EmbedColor.ERROR,
                         )
-                        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
                         await interaction.followup.send(embed=embed)
 
-        except Exception as e:
-            embed = discord.Embed(
-                title="😅 เช็กราคาให้ไม่ได้ในตอนนี้",
-                description="ขอโทษนะ ตอนนี้ผมติดต่อแหล่งข้อมูลราคาไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่ครับ",
-                color=0xe74c3c
+        except Exception:
+            embed = make_embed(
+                self.bot,
+                "Crypto",
+                title="😅 ราคายังมาไม่ถึง",
+                description="แหล่งข้อมูลเงียบไปนิดนึง รอสักครู่แล้วลองให้ผมเช็กใหม่อีกทีนะ",
+                color=EmbedColor.ERROR,
             )
-            avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
             await interaction.followup.send(embed=embed)
 
     @crypto.autocomplete('symbol')

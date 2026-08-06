@@ -274,6 +274,7 @@ Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg
 └── src/
     ├── bot.py               # ประกอบ Bot, โหลด cogs และคำสั่งหลัก
     ├── config.py            # Environment configuration
+    ├── ui.py                # ชุดสีและรูปแบบ Embed กลาง
     ├── cogs/                # Slash commands แยกตามฟีเจอร์
     │   ├── music.py
     │   ├── stock.py

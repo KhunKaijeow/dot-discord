@@ -6,6 +6,7 @@ from discord import app_commands
 import aiohttp
 import urllib.parse
 from .music import get_state
+from ..ui import EmbedColor, make_embed, set_embed_author
 
 class LyricsCog(commands.Cog):
     def __init__(self, bot):
@@ -23,18 +24,22 @@ class LyricsCog(commands.Cog):
                 if state and state.current:
                     query = state.current.title
                 else:
-                    embed = discord.Embed(
+                    embed = make_embed(
+                        self.bot,
+                        "Lyrics",
                         title="🎵 ตอนนี้ยังไม่มีเพลงเล่นอยู่",
-                        description="พิมพ์ชื่อเพลงที่อยากหาเนื้อร้องมาได้เลย เช่น `/lyrics query:Shape of You`",
-                        color=0xe74c3c
+                        description="ส่งชื่อเพลงมาได้เลย เช่น `/lyrics query:Shape of You` เดี๋ยวผมหาให้",
+                        color=EmbedColor.INFO,
                     )
                     await interaction.followup.send(embed=embed)
                     return
             except Exception:
-                embed = discord.Embed(
+                embed = make_embed(
+                    self.bot,
+                    "Lyrics",
                     title="🎵 บอกชื่อเพลงผมหน่อย",
-                    description="ลองใส่ชื่อเพลงที่อยากหาเนื้อร้อง เช่น `/lyrics query:hello` นะครับ",
-                    color=0xe74c3c
+                    description="ลองใส่ชื่อเพลง เช่น `/lyrics query:hello` แล้วผมจะไปหาเนื้อร้องให้",
+                    color=EmbedColor.INFO,
                 )
                 await interaction.followup.send(embed=embed)
                 return
@@ -53,10 +58,12 @@ class LyricsCog(commands.Cog):
                         results = await response.json(content_type=None)
                         
                         if not results:
-                            embed = discord.Embed(
+                            embed = make_embed(
+                                self.bot,
+                                "Lyrics",
                                 title="🔎 ยังไม่เจอเนื้อเพลงนี้",
-                                description=f"ผมหาเนื้อเพลง **{query_clean}** ไม่เจอ ลองใส่ชื่อศิลปินเพิ่มหรือเช็กชื่อเพลงอีกครั้งนะครับ",
-                                color=0xe74c3c
+                                description=f"ผมหา **{query_clean}** ไม่เจอ ลองเติมชื่อศิลปินแล้วค้นอีกทีนะ",
+                                color=EmbedColor.WARNING,
                             )
                             await interaction.followup.send(embed=embed)
                             return
@@ -69,10 +76,12 @@ class LyricsCog(commands.Cog):
                                 break
                         
                         if not best_match:
-                            embed = discord.Embed(
+                            embed = make_embed(
+                                self.bot,
+                                "Lyrics",
                                 title="🎼 เพลงนี้อาจไม่มีเนื้อร้อง",
-                                description=f"ผมหาเนื้อร้องของ **{query_clean}** ไม่เจอ เพลงนี้อาจเป็นเพลงบรรเลงหรือตอนนี้ยังไม่มีข้อมูลครับ",
-                                color=0xe74c3c
+                                description=f"ยังไม่มีเนื้อร้องของ **{query_clean}** หรืออาจเป็นเพลงบรรเลงก็ได้นะ",
+                                color=EmbedColor.WARNING,
                             )
                             await interaction.followup.send(embed=embed)
                             return
@@ -89,26 +98,29 @@ class LyricsCog(commands.Cog):
 
                         # Build beautiful Embed card
                         embed = discord.Embed(
+                            title=f"🎼 {title}",
                             description=f"👤 **ศิลปิน:** `{artist}` | 💿 **อัลบั้ม:** `{album}`\n\n>>> {lyrics_text}",
-                            color=0x9b59b6  # Purple theme for music
+                            color=EmbedColor.MUSIC,
                         )
-                        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_author(name=f"เจอเนื้อเพลงแล้ว • {title}", icon_url=avatar_url)
+                        set_embed_author(embed, self.bot, "Lyrics")
                         await interaction.followup.send(embed=embed)
                     else:
-                        embed = discord.Embed(
-                            title="😅 โหลดเนื้อเพลงไม่สำเร็จ",
-                            description=f"แหล่งข้อมูลตอบกลับไม่สำเร็จ (รหัส {response.status}) ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
-                            color=0xe74c3c
+                        embed = make_embed(
+                            self.bot,
+                            "Lyrics",
+                            title="😅 เนื้อเพลงยังมาไม่ถึง",
+                            description=f"แหล่งข้อมูลตอบกลับด้วยรหัส `{response.status}` รอสักครู่แล้วลองใหม่อีกทีนะ",
+                            color=EmbedColor.ERROR,
                         )
-                        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
                         await interaction.followup.send(embed=embed)
 
-        except Exception as e:
-            embed = discord.Embed(
-                title="😅 โหลดเนื้อเพลงไม่สำเร็จ",
-                description="ตอนนี้ผมติดต่อแหล่งข้อมูลเนื้อเพลงไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
-                color=0xe74c3c
+        except Exception:
+            embed = make_embed(
+                self.bot,
+                "Lyrics",
+                title="😅 เนื้อเพลงยังมาไม่ถึง",
+                description="แหล่งข้อมูลเงียบไปนิดนึง รอสักครู่แล้วลองใหม่อีกทีนะ",
+                color=EmbedColor.ERROR,
             )
             avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
             await interaction.followup.send(embed=embed)

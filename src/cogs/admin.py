@@ -10,6 +10,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from ..ui import EmbedColor, make_embed
+
 
 logger = logging.getLogger("discord.admin")
 
@@ -86,7 +88,7 @@ class SettingsView(discord.ui.View):
         row = await asyncio.to_thread(self.bot.database.get_settings, self.guild_id)
         enabled = 0 if row["digest_enabled"] else 1
         if enabled and not row["digest_channel_id"]:
-            await interaction.response.send_message("กรุณาตั้งห้อง Digest ก่อน", ephemeral=True)
+            await interaction.response.send_message("เลือกห้อง Digest ก่อนนะ แล้วค่อยเปิดใช้งาน", ephemeral=True)
             return
         await asyncio.to_thread(self.bot.database.update_settings, self.guild_id, digest_enabled=enabled)
         await interaction.response.send_message(f"✅ {'เปิด' if enabled else 'ปิด'} Morning Digest แล้ว", ephemeral=True)
@@ -100,24 +102,27 @@ class AdminCog(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def settings(self, interaction: discord.Interaction):
         if not can_manage_guild(interaction):
-            await interaction.response.send_message("คำสั่งนี้สำหรับผู้ดูแล Server เท่านั้น", ephemeral=True)
+            await interaction.response.send_message("เมนูนี้ให้ผู้ดูแลเซิร์ฟเวอร์ใช้นะ", ephemeral=True)
             return
         try:
             row = await asyncio.to_thread(self.bot.database.get_settings, interaction.guild.id)
         except Exception:
             logger.exception("Could not load guild settings for guild %s", interaction.guild.id)
             await interaction.response.send_message(
-                "โหลดการตั้งค่าไม่สำเร็จ กรุณาตรวจสอบสิทธิ์เขียนโฟลเดอร์ `data/`",
+                "เปิดการตั้งค่าไม่สำเร็จ ลองเช็กสิทธิ์เขียนโฟลเดอร์ `data/` ให้หน่อยนะ",
                 ephemeral=True,
             )
             return
-        embed = discord.Embed(
-            title="⚙️ Javis Admin Control Panel",
+        embed = make_embed(
+            self.bot,
+            "Settings",
+            title="⚙️ ตั้งค่าบอทในเซิร์ฟเวอร์นี้",
             description=(
-                f"Morning Digest: **{'เปิด' if row['digest_enabled'] else 'ปิด'}**\n"
-                f"เวลา: `{row['digest_hour']:02d}:{row['digest_minute']:02d}` ({row['timezone']})\n"
-                "ใช้ปุ่มด้านล่างเพื่อตั้งค่า การตอบกลับทั้งหมดเป็นแบบส่วนตัว"
-            ), color=0x5865F2,
+                f"**Morning Digest** {'🟢 เปิดอยู่' if row['digest_enabled'] else '⚪ ปิดอยู่'}\n"
+                f"**เวลาส่ง** `{row['digest_hour']:02d}:{row['digest_minute']:02d}` • `{row['timezone']}`\n\n"
+                "เลือกตั้งค่าต่อจากปุ่มด้านล่างได้เลย หน้านี้เห็นเฉพาะคุณนะ"
+            ),
+            color=EmbedColor.PRIMARY,
         )
         await interaction.response.send_message(
             embed=embed, view=SettingsView(self.bot, interaction.user.id, interaction.guild.id), ephemeral=True,

@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ..services.market_data import get_market_price, normalize_symbol
+from ..ui import EmbedColor, make_embed
 
 
 logger = logging.getLogger("discord.price_alerts")
@@ -52,12 +53,21 @@ class PriceAlertsCog(commands.Cog):
             message = "คุณมี Alert ครบ 20 รายการแล้ว" if "limit" in str(error).lower() else "สัญลักษณ์ไม่ถูกต้องหรือดึงราคาไม่ได้"
             await interaction.response.send_message(message, ephemeral=True)
             return
+        condition_text = "สูงกว่า" if condition == "above" else "ต่ำกว่า"
+        embed = make_embed(
+            self.bot,
+            "Price Alert",
+            title="🔔 เดี๋ยวผมช่วยเฝ้าราคาให้",
+            description=(
+                f"**สินทรัพย์** `{normalized}`\n"
+                f"**แจ้งเมื่อ** ราคา{condition_text} `${target_price:,.4f}`\n"
+                f"**ตอนนี้** `${current:,.4f}`\n\nID สำหรับลบ: `{alert_id}`"
+            ),
+            color=EmbedColor.SUCCESS,
+        )
         await interaction.response.send_message(
-            embed=discord.Embed(
-                title="🔔 เพิ่ม Price Alert แล้ว",
-                description=f"ID `{alert_id}` • `{normalized}` {condition} `${target_price:,.4f}`\nราคาปัจจุบัน `${current:,.4f}`",
-                color=0x2ECC71,
-            ), ephemeral=True,
+            embed=embed,
+            ephemeral=True,
         )
 
     @price_alert.command(name="list", description="ดู Price Alert ของคุณ")
@@ -68,13 +78,21 @@ class PriceAlertsCog(commands.Cog):
         text = "\n".join(
             f"`#{row['id']}` {row['asset_type']} `{row['symbol']}` {row['condition']} `${row['target_price']:,.4f}`"
             for row in rows
-        ) or "ยังไม่มี Price Alert"
-        await interaction.response.send_message(embed=discord.Embed(title="🔔 Price Alerts", description=text, color=0x3498DB), ephemeral=True)
+        ) or "ยังไม่มีรายการที่ให้ผมเฝ้าอยู่"
+        embed = make_embed(
+            self.bot,
+            "Price Alert",
+            title="🔔 ราคาที่กำลังเฝ้าให้",
+            description=text,
+            color=EmbedColor.INFO,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @price_alert.command(name="remove", description="ลบ Price Alert ด้วย ID")
     async def remove(self, interaction: discord.Interaction, alert_id: int):
         deleted = await asyncio.to_thread(self.database.delete_alert, alert_id, interaction.user.id)
-        await interaction.response.send_message("✅ ลบ Price Alert แล้ว" if deleted else "ไม่พบ Alert นี้หรือไม่ใช่ของคุณ", ephemeral=True)
+        message = "✅ เลิกเฝ้ารายการนี้ให้แล้วนะ" if deleted else "หา Alert นี้ไม่เจอ หรืออาจไม่ใช่ของคุณนะ"
+        await interaction.response.send_message(message, ephemeral=True)
 
     @tasks.loop(minutes=5)
     async def check_prices(self):
@@ -102,13 +120,20 @@ class PriceAlertsCog(commands.Cog):
             if channel is None:
                 continue
             try:
+                condition_text = "สูงกว่า" if row["condition"] == "above" else "ต่ำกว่า"
+                embed = make_embed(
+                    self.bot,
+                    "Price Alert",
+                    title="🚨 ราคาถึงเป้าที่ตั้งไว้แล้ว",
+                    description=(
+                        f"`{row['symbol']}` ตอนนี้อยู่ที่ **`${price:,.4f}`**\n"
+                        f"เข้าเงื่อนไขราคา{condition_text} `${row['target_price']:,.4f}` แล้วนะ"
+                    ),
+                    color=EmbedColor.WARNING,
+                )
                 await channel.send(
                     content=f"<@{row['user_id']}>",
-                    embed=discord.Embed(
-                        title="🚨 Price Alert ทำงานแล้ว",
-                        description=f"`{row['symbol']}` ราคา `${price:,.4f}` ถึงเงื่อนไข {row['condition']} `${row['target_price']:,.4f}`",
-                        color=0xF1C40F,
-                    ),
+                    embed=embed,
                     allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
                 )
             except (discord.Forbidden, discord.HTTPException):

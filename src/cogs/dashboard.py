@@ -1,5 +1,7 @@
 import discord
 from discord.ext import commands, tasks
+
+from ..ui import EmbedColor, make_embed, set_embed_author
 from discord import app_commands
 import yfinance as yf
 import asyncio
@@ -141,16 +143,15 @@ class DashboardCog(commands.Cog):
         # 3. Build Embed
         now = datetime.now(timezone.utc)
         embed = discord.Embed(
-            title="📊 บอร์ดรายงานข้อมูลสรุปประจำวัน (Daily Dashboard)",
-            description=f"อัปเดตข้อมูลอัตโนมัติล่าสุดเมื่อ: <t:{int(now.timestamp())}:R>",
-            color=0x34495e,
+            title="📊 ภาพรวมวันนี้",
+            description=f"ข้อมูลชุดนี้อัปเดตเมื่อ <t:{int(now.timestamp())}:R>",
+            color=EmbedColor.PRIMARY,
             timestamp=now
         )
-        embed.add_field(name="🏛️ ดัชนีการเงินและการลงทุนล่าสุด", value=finance_text, inline=False)
-        embed.add_field(name="📰 สรุปข่าวเด่นร้อนแรงล่าสุด", value=news_text, inline=False)
+        embed.add_field(name="🏛️ ตลาดตอนนี้", value=finance_text, inline=False)
+        embed.add_field(name="📰 ข่าวที่น่าสนใจ", value=news_text, inline=False)
 
-        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-        embed.set_author(name="Javis Server Monitor", icon_url=avatar_url)
+        set_embed_author(embed, self.bot, "Daily Dashboard")
         return embed
 
     @tasks.loop(time=DASHBOARD_UPDATE_TIME)
@@ -198,38 +199,41 @@ class DashboardCog(commands.Cog):
         self.message_id = message.id
         self.save_state()
 
-        confirm_embed = discord.Embed(
-            description=f"✅ **เปิดใช้งานบอร์ดข้อมูลสำเร็จ!** บอร์ดจะอัปเดตตัวเองอัตโนมัติในช่อง {channel.mention} ทุกวันเวลา **08:00 น. (เวลาไทย)** ครับ",
-            color=0x2ecc71
+        confirm_embed = make_embed(
+            self.bot,
+            "Daily Dashboard",
+            title="✅ ตั้งบอร์ดให้แล้ว",
+            description=f"ผมจะอัปเดตข้อมูลใน {channel.mention} ทุกวันเวลา **08:00 น.** ตามเวลาไทยนะ",
+            color=EmbedColor.SUCCESS,
         )
         await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
     @app_commands.command(name="dashboard-update", description="สั่งบังคับให้บอร์ดสรุปอัปเดตข้อมูลทันที")
     async def dashboard_update(self, interaction: discord.Interaction):
         if not self.channel_id or not self.message_id:
-            await interaction.response.send_message("❌ **บอร์ดยังไม่ถูกติดตั้ง!** กรุณาใช้คำสั่ง `/dashboard-setup` ก่อนครับ", ephemeral=True)
+            await interaction.response.send_message("บอร์ดยังไม่ได้ตั้งไว้นะ ใช้ `/dashboard-setup` ก่อนหนึ่งครั้ง", ephemeral=True)
             return
 
         await interaction.response.defer(thinking=True)
         channel = self.bot.get_channel(self.channel_id)
         if not channel:
-            await interaction.followup.send("❌ **ไม่พบห้องสำหรับบอร์ดข้อมูล!** กรุณาตั้งค่าห้องด้วยคำสั่ง `/dashboard-setup` อีกครั้งครับ", ephemeral=True)
+            await interaction.followup.send("หาห้องของบอร์ดไม่เจอ ลองตั้งใหม่ด้วย `/dashboard-setup` นะ")
             return
 
         try:
             message = await channel.fetch_message(self.message_id)
             embed = await self.build_dashboard_embed()
             await message.edit(embed=embed)
-            await interaction.followup.send("✅ **อัปเดตข้อมูลบนบอร์ดเรียบร้อยแล้วครับ!**")
+            await interaction.followup.send("✅ อัปเดตบอร์ดให้สดใหม่แล้วนะ")
         except discord.NotFound:
             embed = await self.build_dashboard_embed()
             new_msg = await channel.send(embed=embed)
             self.message_id = new_msg.id
             self.save_state()
-            await interaction.followup.send("⚠️ **ไม่พบข้อความบอร์ดเดิม!** จึงได้ทำการสร้างข้อความบอร์ดใหม่และอัปเดตข้อมูลเรียบร้อยครับ")
+            await interaction.followup.send("หาโพสต์บอร์ดเดิมไม่เจอ เลยสร้างอันใหม่ให้แล้วนะ ✨")
         except Exception as e:
             logger.error(f"Error manually updating dashboard: {e}")
-            await interaction.followup.send("😅 ขออภัย เกิดข้อผิดพลาดในการอัปเดตข้อมูลบอร์ด")
+            await interaction.followup.send("😅 บอร์ดสะดุดนิดหน่อย ลองอัปเดตใหม่อีกทีนะ")
 
 async def setup(bot):
     await bot.add_cog(DashboardCog(bot))

@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..services.translation import TranslationService, TranslationServiceError
+from ..ui import EmbedColor, make_embed
 
 
 class TranslatorCog(commands.Cog):
@@ -46,34 +47,37 @@ class TranslatorCog(commands.Cog):
                 await self.translation_service.translate(text, to_language)
             )
         except TranslationServiceError:
-            embed = discord.Embed(
-                title="😅 แปลให้ไม่ได้ในตอนนี้",
+            embed = make_embed(
+                self.bot,
+                "Translate",
+                title="😅 รอบนี้แปลไม่สำเร็จ",
                 description=(
-                    "ขอโทษนะ ตอนนี้ผมติดต่อบริการแปลภาษาไม่ได้ "
-                    "ลองใหม่อีกครั้งในอีกสักครู่ครับ"
+                    "ตอนนี้บริการแปลภาษาเงียบไปนิดนึง "
+                    "พักแป๊บแล้วลองส่งมาใหม่อีกทีนะ"
                 ),
-                color=0xE74C3C,
+                color=EmbedColor.ERROR,
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
-        embed = discord.Embed(
+        embed = make_embed(
+            self.bot,
+            "Translate",
+            title="🌐 แปลให้แล้วนะ",
             description=(
-                f"🌐 **ทิศทางการแปล:** `{detected_language.upper()}` "
+                f"`{detected_language.upper()}` "
                 f"➡️ `{to_language.upper()}`"
             ),
-            color=0x1ABC9C,
+            color=EmbedColor.PRIMARY,
         )
-        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-        embed.set_author(name="แปลให้แล้ว • Translation", icon_url=avatar_url)
         embed.add_field(
-            name="📥 ข้อความต้นฉบับ",
-            value=f"```\n{text}\n```",
+            name="📥 ต้นฉบับ",
+            value=f"> {text}",
             inline=False,
         )
         embed.add_field(
-            name="📤 ผลลัพธ์การแปล",
-            value=f"```\n{translated_text}\n```",
+            name="✨ คำแปล",
+            value=translated_text,
             inline=False,
         )
         await interaction.followup.send(embed=embed)

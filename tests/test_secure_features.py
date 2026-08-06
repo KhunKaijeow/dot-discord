@@ -13,6 +13,7 @@ from src.cogs.reminder import parse_duration
 from src.services.database import Database
 from src.services.market_data import normalize_symbol
 from src.services.typhoon import TyphoonService
+from src.ui import EmbedColor, make_embed
 
 
 class DatabaseTests(unittest.TestCase):
@@ -80,6 +81,20 @@ class DatabaseTests(unittest.TestCase):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_shared_embed_style_has_author_and_no_footer(self):
+        bot = MagicMock()
+        bot.user.display_avatar.url = "https://example.com/avatar.png"
+
+        embed = make_embed(
+            bot,
+            "Test",
+            title="สวัสดี",
+            color=EmbedColor.PRIMARY,
+        )
+
+        self.assertEqual(embed.author.name, "Javis • Test")
+        self.assertIsNone(embed.footer.text)
+
     def test_typhoon_response_extraction(self):
         payload = {"choices": [{"message": {"content": "  สวัสดีครับ  "}}]}
         self.assertEqual(TyphoonService._extract_content(payload), "สวัสดีครับ")

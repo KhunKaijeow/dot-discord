@@ -5,6 +5,7 @@ from discord.ext import commands
 from discord import app_commands
 import aiohttp
 from ..config import VALORANT_API_KEY
+from ..ui import EmbedColor, make_embed, set_embed_author
 
 class ValorantCog(commands.Cog):
     def __init__(self, bot):
@@ -24,14 +25,13 @@ class ValorantCog(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         if not VALORANT_API_KEY or VALORANT_API_KEY == "your_valorant_api_key_here":
-            # Show helpful configuration guide embed
-            # Show helpful configuration guide embed
-            embed = discord.Embed(
-                description="ℹ️ **ก่อนเช็กสถานะ VALORANT เราต้องใส่ API Key ฟรีจาก HenrikDev ให้บอทก่อนนะครับ**",
-                color=0xff4655  # Valorant Riot Red
+            embed = make_embed(
+                self.bot,
+                "VALORANT",
+                title="🔑 ขอ API Key อีกนิดเดียว",
+                description="ก่อนเช็กสถานะเกม ใส่คีย์ฟรีจาก HenrikDev ให้ผมก่อนนะ",
+                color=EmbedColor.WARNING,
             )
-            avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_author(name="ตั้งค่าอีกนิดก็พร้อมใช้งานแล้ว", icon_url=avatar_url)
             
             embed.add_field(
                 name="📋 ตั้งค่าตามนี้ได้เลย:",
@@ -39,7 +39,7 @@ class ValorantCog(commands.Cog):
                       "2️⃣ ล็อกอินด้วยบัญชี Discord เพื่อเคลม **Basic API Key** ฟรี\n"
                       "3️⃣ คัดลอกค่าคีย์บอร์ดที่ได้ (จะขึ้นต้นด้วย `HDEV-...`)\n"
                       "4️⃣ นำไปใส่ในไฟล์ `.env` ช่องตัวแปร `VALORANT_API_KEY`\n"
-                      "5️⃣ สั่งรีสตาร์ทบอทเพื่อเริ่มใช้งานคำสั่งได้ทันทีครับ",
+                      "5️⃣ รีสตาร์ทบอทหนึ่งรอบ แล้วกลับมาเช็กได้เลย",
                 inline=False
             )
             await interaction.followup.send(embed=embed)
@@ -52,8 +52,6 @@ class ValorantCog(commands.Cog):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as response:
-                    avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                    
                     if response.status == 200:
                         data = await response.json()
                         api_data = data.get("data", {})
@@ -63,10 +61,11 @@ class ValorantCog(commands.Cog):
                         # Build beautiful status embed
                         is_healthy = not maintenances and not incidents
                         embed = discord.Embed(
-                            description=f"🎮 **เซิร์ฟเวอร์ภูมิภาค:** `{region.upper()}`",
+                            title="🎮 สถานะเซิร์ฟเวอร์ VALORANT",
+                            description=f"กำลังดูภูมิภาค `{region.upper()}` ให้",
                             color=0x2ecc71 if is_healthy else 0xff4655
                         )
-                        embed.set_author(name="เช็กสถานะ VALORANT ให้แล้ว", icon_url=avatar_url)
+                        set_embed_author(embed, self.bot, "VALORANT")
 
                         # Handle Maintenance
                         if maintenances:
@@ -78,7 +77,7 @@ class ValorantCog(commands.Cog):
                                 m_text += f"⚙️ **{title}**\n> *{update_text}*\n\n"
                             embed.add_field(name="🛠️ กำลังปิดปรับปรุง (Maintenance)", value=m_text[:1024], inline=False)
                         else:
-                            embed.add_field(name="🛠️ การปิดปรับปรุง (Maintenance)", value="✅ ตอนนี้เซิร์ฟเวอร์เปิดตามปกติ ยังไม่มีกำหนดปิดปรับปรุงครับ", inline=False)
+                            embed.add_field(name="🛠️ การปิดปรับปรุง", value="✅ ยังไม่มีตารางปิดปรับปรุง ตอนนี้เล่นได้ตามปกติ", inline=False)
 
                         # Handle Incidents
                         if incidents:
@@ -90,29 +89,35 @@ class ValorantCog(commands.Cog):
                                 i_text += f"🚨 **{title}**\n> *{update_text}*\n\n"
                             embed.add_field(name="🚨 ปัญหาระบบเซิร์ฟเวอร์ (Incidents)", value=i_text[:1024], inline=False)
                         else:
-                            embed.add_field(name="🚨 เหตุขัดข้อง (Incidents)", value="✅ ทุกอย่างทำงานปกติดี ตอนนี้ยังไม่มีรายงานปัญหาครับ", inline=False)
+                            embed.add_field(name="🚨 เหตุขัดข้อง", value="✅ ทุกอย่างดูปกติดี ยังไม่มีปัญหาที่รายงานเข้ามา", inline=False)
 
                         await interaction.followup.send(embed=embed)
                     elif response.status == 401:
-                        embed = discord.Embed(
+                        embed = make_embed(
+                            self.bot,
+                            "VALORANT",
                             title="🔑 API Key ใช้งานไม่ได้แล้ว",
-                            description="ดูเหมือน `VALORANT_API_KEY` ในไฟล์ `.env` จะไม่ถูกต้องหรือหมดอายุ ลองสร้างคีย์ใหม่ที่ [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) นะครับ",
-                            color=0xff4655
+                            description="คีย์ใน `.env` อาจหมดอายุ ลองสร้างใหม่ที่ [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) นะ",
+                            color=EmbedColor.ERROR,
                         )
                         await interaction.followup.send(embed=embed)
                     else:
-                        embed = discord.Embed(
-                            title="😅 เช็กสถานะให้ไม่ได้ในตอนนี้",
-                            description=f"บริการสถานะตอบกลับไม่สำเร็จ (รหัส {response.status}) ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
-                            color=0xff4655
+                        embed = make_embed(
+                            self.bot,
+                            "VALORANT",
+                            title="😅 สถานะเกมยังมาไม่ถึง",
+                            description=f"บริการตอบกลับด้วยรหัส `{response.status}` รอสักครู่แล้วลองใหม่อีกทีนะ",
+                            color=EmbedColor.ERROR,
                         )
                         await interaction.followup.send(embed=embed)
 
-        except Exception as e:
-            embed = discord.Embed(
-                title="😅 เช็กสถานะให้ไม่ได้ในตอนนี้",
-                description="ขอโทษนะ ตอนนี้ผมติดต่อบริการสถานะ VALORANT ไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่ครับ",
-                color=0xff4655
+        except Exception:
+            embed = make_embed(
+                self.bot,
+                "VALORANT",
+                title="😅 สถานะเกมยังมาไม่ถึง",
+                description="บริการเงียบไปนิดนึง รอสักครู่แล้วลองใหม่อีกทีนะ",
+                color=EmbedColor.ERROR,
             )
             await interaction.followup.send(embed=embed)
 

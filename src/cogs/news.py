@@ -10,6 +10,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from ..ui import EmbedColor, make_embed
+
 
 logger = logging.getLogger("javis.news")
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20)
@@ -39,10 +41,10 @@ class NewsCog(commands.Cog):
             keyword_clean = keyword.strip()
             encoded_kw = quote(keyword_clean)
             url = f"https://news.google.com/rss/search?q={encoded_kw}&hl=th&gl=TH&ceid=TH:th"
-            title_display = f"🔎 สรุปข่าวเด่นล่าสุดเกี่ยวกับ: {keyword_clean}"
+            title_display = f"🔎 ข่าวที่เจอเกี่ยวกับ “{keyword_clean}”"
         else:
             url = "https://news.google.com/rss?hl=th&gl=TH&ceid=TH:th"
-            title_display = "📰 ข่าวเด่นประเด็นร้อนวันนี้"
+            title_display = "📰 มีอะไรน่าสนใจวันนี้บ้าง"
 
         try:
             async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
@@ -57,10 +59,12 @@ class NewsCog(commands.Cog):
                     items = root.findall('.//item')[:7]  # Fetch top 7 news items
                     
                     if not items:
-                        embed = discord.Embed(
-                            title="🔎 ไม่พบข่าวที่ค้นหา",
-                            description="ไม่พบข่าวที่ตรงกับคำค้นหาของคุณในขณะนี้ ลองเปลี่ยนคีย์เวิร์ดใหม่นะครับ",
-                            color=0xe74c3c
+                        embed = make_embed(
+                            self.bot,
+                            "News",
+                            title="🔎 ยังไม่เจอข่าวที่ตรงกัน",
+                            description="ลองเปลี่ยนคำค้นสั้น ๆ แล้วให้ผมหาให้อีกทีนะ",
+                            color=EmbedColor.WARNING,
                         )
                         await interaction.followup.send(embed=embed)
                         return
@@ -86,22 +90,24 @@ class NewsCog(commands.Cog):
                     description_text = "\n\n".join(news_lines)
 
                     # Build beautiful embed
-                    embed = discord.Embed(
+                    embed = make_embed(
+                        self.bot,
+                        "News",
                         title=title_display,
                         description=description_text,
-                        color=0x1f73b7  # Google News Blue
+                        color=EmbedColor.INFO,
                     )
-                    avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                    embed.set_author(name="Google News • ข่าวสารล่าสุด", icon_url=avatar_url)
 
                     await interaction.followup.send(embed=embed)
 
         except Exception:
             logger.exception("Could not fetch Google News RSS")
-            embed = discord.Embed(
-                title="😅 ขออภัย ดึงข่าวไม่สำเร็จ",
-                description="ตอนนี้บอทไม่สามารถดึงข้อมูลข่าวสารได้ ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
-                color=0xe74c3c
+            embed = make_embed(
+                self.bot,
+                "News",
+                title="😅 ข่าวยังมาไม่ถึง",
+                description="แหล่งข่าวตอบช้าไปนิดนึง รอสักครู่แล้วลองใหม่อีกทีนะ",
+                color=EmbedColor.ERROR,
             )
             await interaction.followup.send(embed=embed)
 

@@ -9,6 +9,8 @@ import logging
 from bs4 import BeautifulSoup
 from datetime import datetime
 
+from ..ui import EmbedColor, make_embed
+
 logger = logging.getLogger("discord.x_notifier")
 
 DATA_FILE = "data/x_notifier.json"
@@ -168,9 +170,12 @@ class XNotifierCog(commands.Cog):
         self.channel_id = channel.id
         self.save_state()
         
-        embed = discord.Embed(
-            description=f"✅ **ตั้งค่าเรียบร้อย!** บอทจะแจ้งเตือนข่าวสาร sheapgamer ที่ช่อง {channel.mention} ทุกครั้งที่มีการอัพเดทใหม่",
-            color=0x2ecc71
+        embed = make_embed(
+            self.bot,
+            "sheapgamer",
+            title="✅ ตั้งห้องข่าวให้แล้ว",
+            description=f"มีโพสต์ใหม่เมื่อไร ผมจะรีบเอาไปบอกที่ {channel.mention} เลย",
+            color=EmbedColor.SUCCESS,
         )
         await interaction.response.send_message(embed=embed)
 
@@ -179,14 +184,16 @@ class XNotifierCog(commands.Cog):
         if self.channel_id:
             channel = self.bot.get_channel(self.channel_id)
             channel_mention = channel.mention if channel else f"ไม่พบห้อง ID {self.channel_id}"
-            status_text = f"🟢 **เปิดใช้งาน**\n**ห้องรับข่าวสาร:** {channel_mention}\n**จำนวนโพสต์ที่เคยแสกนล่าสุด:** {len(self.last_seen_guids)} โพสต์"
+            status_text = f"🟢 **เปิดอยู่**\n**ส่งข่าวที่** {channel_mention}\n**โพสต์ที่จำไว้** `{len(self.last_seen_guids)}` โพสต์"
         else:
-            status_text = "🔴 **ยังไม่ได้เปิดใช้งาน**\nใช้คำสั่ง `/x-setup` เพื่อกำหนดห้องรับข่าวสารได้เลยครับ"
+            status_text = "⚪ **ยังไม่ได้เปิด**\nใช้ `/x-setup` เลือกห้องรับข่าวได้เลย"
 
-        embed = discord.Embed(
-            title="🔍 สถานะการแจ้งเตือน sheapgamer",
+        embed = make_embed(
+            self.bot,
+            "sheapgamer",
+            title="🔍 ระบบตามข่าวตอนนี้",
             description=status_text,
-            color=0x3498db
+            color=EmbedColor.INFO,
         )
         await interaction.response.send_message(embed=embed)
 

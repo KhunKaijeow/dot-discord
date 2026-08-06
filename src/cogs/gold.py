@@ -9,6 +9,7 @@ import pandas as pd
 import yfinance as yf
 
 from ..services.chart_generator import generate_price_chart
+from ..ui import EmbedColor, set_embed_author
 
 
 logger = logging.getLogger("javis.gold")
@@ -61,28 +62,33 @@ class GoldCog(commands.Cog):
                 prev_close = hist['Close'].iloc[-2]
 
             change_str = "0.00 (0.00%)"
-            color = 0xf1c40f  # Default Gold/Yellow
+            color = EmbedColor.GOLD
             if current_price and prev_close:
                 change = current_price - prev_close
                 pct_change = (change / prev_close) * 100
                 sign = "+" if change > 0 else ""
                 change_str = f"{sign}{change:,.2f} ({sign}{pct_change:,.2f}%)"
                 if change > 0:
-                    color = 0xf1c40f  # Gold/Yellow (Up)
+                    color = EmbedColor.GOLD
                 elif change < 0:
-                    color = 0xe74c3c  # Red (Down)
+                    color = EmbedColor.MARKET_DOWN
 
             embed = discord.Embed(
-                title="🏆 ราคาทองคำตลาดโลก (Gold Futures)",
+                title="🏆 ราคาทองคำตลาดโลก",
                 description=(
-                    f"💵 **ราคาปัจจุบัน:** `${current_price:,.2f} / ออนซ์`\n"
-                    f"📊 **การเปลี่ยนแปลงวันนี้:** `{change_str}`\n\n"
+                    f"💵 **ตอนนี้:** `${current_price:,.2f} / ออนซ์`\n"
+                    f"📊 **วันนี้ขยับ:** `{change_str}`\n\n"
                     f"*📉 กราฟราคาย้อนหลัง 30 วัน*"
                 ),
                 color=color,
                 timestamp=datetime.utcnow()
             )
-            embed.set_footer(text="ตลาด COMEX (GC=F) | แหล่งข้อมูล: Yahoo Finance")
+            set_embed_author(embed, self.bot, "Gold • อัปเดตล่าสุด")
+            embed.add_field(
+                name="📡 ข้อมูลจาก",
+                value="Yahoo Finance • `COMEX: GC=F`",
+                inline=False,
+            )
 
             chart_file = None
             if not hist.empty and len(hist) > 1:
@@ -103,7 +109,7 @@ class GoldCog(commands.Cog):
 
         except Exception:
             logger.exception("Could not fetch gold price")
-            await interaction.followup.send("😅 ขออภัย ไม่สามารถดึงราคาทองคำได้ในขณะนี้ ลองอีกครั้งในภายหลังครับ")
+            await interaction.followup.send("😅 ราคาทองยังมาไม่ถึง รอสักครู่แล้วลองใหม่อีกทีนะ")
 
     @app_commands.command(name="gold-analysis", description="วิเคราะห์จุดซื้อขายทองทางเทคนิคอล (Pivot Points, RSI, EMA)")
     async def gold_analysis(self, interaction: discord.Interaction):
@@ -112,7 +118,7 @@ class GoldCog(commands.Cog):
             info, hist = await asyncio.to_thread(fetch_gold_data)
             
             if hist.empty or len(hist) < 2:
-                await interaction.followup.send("😅 ขออภัย ไม่พบข้อมูลสถิติราคาทองคำที่เพียงพอสำหรับการคำนวณ")
+                await interaction.followup.send("😅 ข้อมูลยังไม่พอให้วิเคราะห์ รอข้อมูลตลาดเพิ่มอีกนิดนะ")
                 return
 
             current_price = info.get("currentPrice") or info.get("regularMarketPrice") or hist['Close'].iloc[-1]
@@ -142,15 +148,15 @@ class GoldCog(commands.Cog):
             if current_price > ema20 and ema10 > ema20:
                 trend_status = "📈 **ขาขึ้นระยะสั้น (Bullish)**"
                 trend_desc = "ราคาอยู่เหนือเส้นค่าเฉลี่ย EMA 10 และ 20 ทิศทางมีแรงซื้อหนุนอย่างชัดเจน"
-                color = 0x2ecc71  # Green
+                color = EmbedColor.MARKET_UP
             elif current_price < ema20 and ema10 < ema20:
                 trend_status = "📉 **ขาลงระยะสั้น (Bearish)**"
                 trend_desc = "ราคาอยู่ใต้เส้นค่าเฉลี่ย EMA 10 และ 20 มีแรงเทขายกดดันตลาดอย่างต่อเนื่อง"
-                color = 0xe74c3c  # Red
+                color = EmbedColor.MARKET_DOWN
             else:
                 trend_status = "↔️ **แกว่งตัวออกข้าง (Sideways)**"
                 trend_desc = "ราคาเคลื่อนไหวสลับขึ้นลงใกล้เคียงเส้น EMA ตลาดยังเลือกทิศทางไม่ชัดเจน"
-                color = 0xf1c40f  # Gold/Yellow
+                color = EmbedColor.GOLD
 
             # 4. Determine Momentum from RSI
             if rsi >= 70:
@@ -168,11 +174,12 @@ class GoldCog(commands.Cog):
 
             # Render Discord Embed
             embed = discord.Embed(
-                title="📊 วิเคราะห์แนวรับ-แนวต้านทองคำทางเทคนิค",
-                description=f"วิเคราะห์จากสถิติราคาทองคำตลาดโลก (COMEX: GC=F)\n**ราคาตลาดปัจจุบัน:** `${current_price:,.2f}`",
+                title="📊 มองแนวรับ–แนวต้านทองกัน",
+                description=f"อิงข้อมูลตลาดโลก `COMEX: GC=F`\n**ราคาตอนนี้** `${current_price:,.2f}`",
                 color=color,
                 timestamp=datetime.utcnow()
             )
+            set_embed_author(embed, self.bot, "Gold • Technical View")
 
             # Add fields
             embed.add_field(
@@ -209,7 +216,7 @@ class GoldCog(commands.Cog):
 
         except Exception:
             logger.exception("Could not calculate gold analysis")
-            await interaction.followup.send("😅 เกิดข้อผิดพลาดในการคำนวณวิเคราะห์ราคาทองคำ ลองอีกครั้งภายหลังครับ")
+            await interaction.followup.send("😅 รอบนี้วิเคราะห์ไม่สำเร็จ รอสักครู่แล้วลองใหม่อีกทีนะ")
 
 async def setup(bot):
     await bot.add_cog(GoldCog(bot))

@@ -11,6 +11,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from ..ui import EmbedColor, make_embed
+
 
 DURATION_RE = re.compile(r"^(\d{1,6})([smhdw])$")
 UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
@@ -38,7 +40,7 @@ class ReminderCog(commands.Cog):
     async def _create(self, interaction: discord.Interaction, due_at: datetime,
                       message: str, repeat_seconds: int | None = None) -> None:
         if not interaction.guild or not interaction.channel_id:
-            await interaction.response.send_message("คำสั่งนี้ใช้ได้ภายใน Server เท่านั้น", ephemeral=True)
+            await interaction.response.send_message("คำสั่งนี้ใช้ในเซิร์ฟเวอร์เท่านั้นนะ", ephemeral=True)
             return
         clean_message = message.strip()
         if not 1 <= len(clean_message) <= 1000:
@@ -50,12 +52,19 @@ class ReminderCog(commands.Cog):
         )
         timestamp = int(due_at.timestamp())
         repeat_text = f" • ซ้ำทุก {repeat_seconds:,} วินาที" if repeat_seconds else ""
+        embed = make_embed(
+            self.bot,
+            "Reminder",
+            title="⏰ จดเวลาไว้ให้แล้ว",
+            description=(
+                f"**เตือนเมื่อ** <t:{timestamp}:F> • <t:{timestamp}:R>{repeat_text}\n"
+                f"**ข้อความ** {clean_message}\n\nID สำหรับยกเลิก: `{reminder_id}`"
+            ),
+            color=EmbedColor.INFO,
+        )
         await interaction.response.send_message(
-            embed=discord.Embed(
-                title="⏰ ตั้งเตือนเรียบร้อย",
-                description=f"ID `{reminder_id}` • <t:{timestamp}:F> (<t:{timestamp}:R>){repeat_text}\n\n{clean_message}",
-                color=0x3498DB,
-            ), ephemeral=True,
+            embed=embed,
+            ephemeral=True,
         )
 
     @app_commands.command(name="remind", description="ตั้งเวลาเตือนแบบถาวร เช่น 30m, 2h, 7d")
@@ -101,13 +110,21 @@ class ReminderCog(commands.Cog):
         text = "\n".join(
             f"`#{row['id']}` <t:{int(datetime.fromisoformat(row['due_at']).timestamp())}:R> — {row['message'][:80]}"
             for row in rows
-        ) or "ยังไม่มีรายการแจ้งเตือน"
-        await interaction.response.send_message(embed=discord.Embed(title="⏰ Reminder ของคุณ", description=text, color=0x3498DB), ephemeral=True)
+        ) or "ยังไม่มีรายการที่ตั้งไว้ ลองใช้ `/remind` ได้เลย"
+        embed = make_embed(
+            self.bot,
+            "Reminder",
+            title="⏰ รายการที่ผมจำไว้ให้",
+            description=text,
+            color=EmbedColor.INFO,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="reminder-cancel", description="ยกเลิก Reminder ด้วย ID")
     async def reminder_cancel(self, interaction: discord.Interaction, reminder_id: int):
         deleted = await asyncio.to_thread(self.database.delete_reminder, reminder_id, interaction.user.id)
-        await interaction.response.send_message("✅ ยกเลิกแล้ว" if deleted else "ไม่พบ Reminder นี้หรือไม่ใช่ของคุณ", ephemeral=True)
+        message = "✅ ยกเลิกให้แล้วนะ" if deleted else "หา Reminder นี้ไม่เจอ หรืออาจไม่ใช่ของคุณนะ"
+        await interaction.response.send_message(message, ephemeral=True)
 
     @tasks.loop(seconds=15)
     async def deliver_reminders(self):
@@ -119,9 +136,16 @@ class ReminderCog(commands.Cog):
             try:
                 user = self.bot.get_user(row["user_id"])
                 mention = user.mention if user else f"<@{row['user_id']}>"
+                embed = make_embed(
+                    self.bot,
+                    "Reminder",
+                    title="🔔 ถึงเวลาที่นัดกันไว้แล้ว",
+                    description=row["message"],
+                    color=EmbedColor.WARNING,
+                )
                 await channel.send(
                     content=mention,
-                    embed=discord.Embed(title="🔔 ถึงเวลาแล้ว", description=row["message"], color=0xE67E22),
+                    embed=embed,
                     allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
                 )
             except (discord.Forbidden, discord.HTTPException):

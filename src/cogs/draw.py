@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..config import TOGETHER_API_KEY
+from ..ui import EmbedColor, set_embed_author
 
 
 logger = logging.getLogger(__name__)
@@ -63,8 +64,9 @@ async def generate_flux_image(
     file = discord.File(img_buf, filename="flux_draw.png")
 
     embed = discord.Embed(
-        title=f"🎨 ภาพ AI: {prompt}",
-        color=discord.Color.random(),
+        title="🎨 ภาพที่เนรมิตให้",
+        description=f"> {prompt}",
+        color=EmbedColor.PRIMARY,
     )
     embed.set_image(url="attachment://flux_draw.png")
     return embed, file
@@ -85,7 +87,8 @@ class DrawControlView(discord.ui.View):
         await interaction.response.defer(thinking=True)
         try:
             embed, file = await generate_flux_image(self.prompt, self.api_key)
-            embed.description = f"**วาดให้:** {interaction.user.mention}\n*ลองสร้างเวอร์ชันใหม่ให้แล้ว ✨*"
+            set_embed_author(embed, interaction.client, "Image Studio • เวอร์ชันใหม่")
+            embed.description = f"วาดให้ {interaction.user.mention}\n> {self.prompt}"
             await interaction.followup.edit_message(
                 message_id=interaction.message.id,
                 embed=embed,
@@ -95,7 +98,7 @@ class DrawControlView(discord.ui.View):
         except Exception:
             logger.exception("Error regenerating image")
             await interaction.followup.send(
-                "❌ ขออภัย ไม่สามารถสร้างรูปภาพใหม่ได้ในขณะนี้",
+                "😅 รอบนี้สร้างภาพใหม่ไม่สำเร็จ ลองอีกทีนะ",
                 ephemeral=True,
             )
 
@@ -117,13 +120,14 @@ class DrawCog(commands.Cog):
 
         try:
             embed, file = await generate_flux_image(prompt, TOGETHER_API_KEY)
-            embed.description = f"**วาดให้:** {interaction.user.mention}\n*เนรมิตภาพเสร็จแล้วด้วย FLUX.1 🎨*"
+            set_embed_author(embed, self.bot, "Image Studio")
+            embed.description = f"วาดให้ {interaction.user.mention}\n> {prompt}"
 
             view = DrawControlView(prompt, TOGETHER_API_KEY)
             await interaction.followup.send(embed=embed, file=file, view=view)
         except Exception:
             logger.exception("Error generating image")
-            await interaction.followup.send("❌ ขออภัย ไม่สามารถสร้างรูปภาพได้ในขณะนี้")
+            await interaction.followup.send("😅 รอบนี้สร้างภาพไม่สำเร็จ ลองใหม่อีกทีนะ")
 
 
 async def setup(bot):

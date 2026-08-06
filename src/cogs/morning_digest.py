@@ -12,6 +12,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from ..ui import EmbedColor, make_embed, set_embed_author
+
 
 class MorningDigestCog(commands.Cog):
     digest = app_commands.Group(name="digest", description="จัดการ Morning Digest")
@@ -29,7 +31,8 @@ class MorningDigestCog(commands.Cog):
         if dashboard is None:
             raise RuntimeError("Dashboard is unavailable")
         embed = await dashboard.build_dashboard_embed()
-        embed.title = "☀️ Morning Digest"
+        embed.title = "☀️ อรุณสวัสดิ์! มีอะไรน่าสนใจบ้าง"
+        set_embed_author(embed, self.bot, "Morning Digest")
         timeout = aiohttp.ClientTimeout(total=12)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -84,7 +87,7 @@ class MorningDigestCog(commands.Cog):
                 city = (await asyncio.to_thread(self.database.get_settings, interaction.guild.id))["digest_city"]
             await interaction.followup.send(embed=await self._build(city), ephemeral=True)
         except Exception:
-            await interaction.followup.send("สร้าง Digest ไม่สำเร็จในขณะนี้", ephemeral=True)
+            await interaction.followup.send("Digest สะดุดนิดหน่อย ลองเปิดตัวอย่างใหม่อีกทีนะ", ephemeral=True)
 
     @digest.command(name="disable", description="ปิด Morning Digest")
     @app_commands.default_permissions(manage_guild=True)
@@ -102,11 +105,19 @@ class MorningDigestCog(commands.Cog):
         row = await asyncio.to_thread(self.database.get_settings, interaction.guild.id)
         channel = self.bot.get_channel(row["digest_channel_id"]) if row["digest_channel_id"] else None
         text = (
-            f"สถานะ: **{'เปิด' if row['digest_enabled'] else 'ปิด'}**\n"
-            f"เวลา: `{row['digest_hour']:02d}:{row['digest_minute']:02d}` ({row['timezone']})\n"
-            f"ห้อง: {channel.mention if channel else 'ยังไม่ตั้งค่า'}\nเมือง: `{row['digest_city']}`"
+            f"**สถานะ** {'🟢 เปิดอยู่' if row['digest_enabled'] else '⚪ ปิดอยู่'}\n"
+            f"**เวลาส่ง** `{row['digest_hour']:02d}:{row['digest_minute']:02d}` • `{row['timezone']}`\n"
+            f"**ห้อง** {channel.mention if channel else 'ยังไม่ได้เลือก'}\n"
+            f"**เมือง** `{row['digest_city']}`"
         )
-        await interaction.response.send_message(embed=discord.Embed(title="☀️ Morning Digest", description=text), ephemeral=True)
+        embed = make_embed(
+            self.bot,
+            "Morning Digest",
+            title="☀️ ตารางส่งข่าวตอนเช้า",
+            description=text,
+            color=EmbedColor.INFO,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @tasks.loop(minutes=1)
     async def digest_worker(self):

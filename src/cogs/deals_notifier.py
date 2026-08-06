@@ -7,6 +7,8 @@ import json
 import logging
 from datetime import datetime
 
+from ..ui import EmbedColor, make_embed
+
 logger = logging.getLogger("discord.deals_notifier")
 
 DATA_FILE = "data/deals_notifier.json"
@@ -151,9 +153,12 @@ class DealsNotifierCog(commands.Cog):
     async def deals_setup(self, interaction: discord.Interaction, channel: discord.TextChannel):
         self.channel_id = channel.id
         self.save_state()
-        embed = discord.Embed(
-            description=f"✅ **ตั้งค่าเรียบร้อย!** บอทจะคอยส่งแจ้งเตือนเมื่อมีเกมแจกฟรีที่ช่อง {channel.mention}",
-            color=0x2ecc71
+        embed = make_embed(
+            self.bot,
+            "Free Games",
+            title="🎁 พร้อมล่าเกมฟรีแล้ว",
+            description=f"ถ้ามีเกมแจกใหม่ ผมจะรีบเอาไปบอกที่ {channel.mention} เลย",
+            color=EmbedColor.SUCCESS,
         )
         await interaction.response.send_message(embed=embed)
 
@@ -163,20 +168,19 @@ class DealsNotifierCog(commands.Cog):
         items = await self.fetch_active_giveaways()
         
         if not items or not isinstance(items, list):
-            await interaction.followup.send("😅 ขออภัย ในขณะนี้ไม่สามารถติดต่อเซิร์ฟเวอร์ดึงข้อมูลดีลเกมได้ครับ")
+            await interaction.followup.send("😅 แหล่งดีลเงียบไปนิดนึง รอสักครู่แล้วลองใหม่อีกทีนะ")
             return
 
         # Show up to top 3 active giveaways
         giveaways_to_show = items[:3]
         
         if not giveaways_to_show:
-            await interaction.followup.send("🎁 ตอนนี้ยังไม่มีเกมแจกฟรีที่เปิดใช้งานอยู่ครับ")
+            await interaction.followup.send("🎁 ตอนนี้ยังไม่มีเกมแจกฟรี เดี๋ยวมีแล้วผมบอกนะ")
             return
 
-        await interaction.followup.send("🎁 **ดีลเกมแจกฟรีล่าสุด 3 รายการประจำวันนี้:**")
+        await interaction.followup.send("🎁 **เจอเกมฟรีล่าสุดมาให้แล้ว:**")
         for item in giveaways_to_show:
             embed = self.create_giveaway_embed(item)
-            # Remove footer to comply with user preference
             await interaction.channel.send(embed=embed)
 
 async def setup(bot):

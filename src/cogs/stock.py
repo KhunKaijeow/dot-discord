@@ -5,6 +5,7 @@ import yfinance as yf
 import asyncio
 from datetime import datetime
 from ..services.chart_generator import generate_price_chart
+from ..ui import EmbedColor, make_embed, set_embed_author
 
 def fetch_stock_data(symbol: str):
     """Sync function to fetch stock info and 1-month historical data from yfinance."""
@@ -51,11 +52,13 @@ class StockCog(commands.Cog):
                 current_price = hist['Close'].iloc[-1]
 
             if not info or current_price is None:
-                embed = discord.Embed(
+                embed = make_embed(
+                    self.bot,
+                    "Stocks",
                     title="🔎 ยังไม่เจอหุ้นตัวนี้",
-                    description=f"ผมหาข้อมูลหุ้น **{symbol}** ไม่เจอ ลองเช็กชื่อย่ออีกครั้งนะครับ\n"
+                    description=f"ผมหาข้อมูลหุ้น **{symbol}** ไม่เจอ ลองเช็กชื่อย่ออีกทีนะ\n"
                                 f"*ตัวอย่าง: AAPL (หุ้นนอก), PTT.BK (หุ้นไทยต้องลงท้ายด้วย .BK)*",
-                    color=0xe74c3c
+                    color=EmbedColor.WARNING,
                 )
                 await interaction.followup.send(embed=embed)
                 return
@@ -100,7 +103,12 @@ class StockCog(commands.Cog):
                 color=color,
                 timestamp=datetime.utcnow()
             )
-            embed.set_footer(text=f"ตลาด: {exchange} | แหล่งข้อมูล: Yahoo Finance")
+            set_embed_author(embed, self.bot, "Stocks • อัปเดตล่าสุด")
+            embed.add_field(
+                name="📡 ข้อมูลจาก",
+                value=f"Yahoo Finance • `{exchange}`",
+                inline=False,
+            )
 
             chart_file = None
             if not hist.empty and len(hist) > 1:
@@ -120,11 +128,13 @@ class StockCog(commands.Cog):
             else:
                 await interaction.followup.send(embed=embed)
 
-        except Exception as e:
-            embed = discord.Embed(
-                title="😅 เช็กราคาหุ้นให้ไม่ได้ในตอนนี้",
-                description="ขอโทษนะ ตอนนี้ผมติดต่อแหล่งข้อมูลหุ้นไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่ครับ",
-                color=0xe74c3c
+        except Exception:
+            embed = make_embed(
+                self.bot,
+                "Stocks",
+                title="😅 ราคาหุ้นยังมาไม่ถึง",
+                description="แหล่งข้อมูลเงียบไปนิดนึง รอสักครู่แล้วลองให้ผมเช็กใหม่อีกทีนะ",
+                color=EmbedColor.ERROR,
             )
             await interaction.followup.send(embed=embed)
 
@@ -160,12 +170,13 @@ class StockCog(commands.Cog):
 
     @app_commands.command(name="stock-popular", description="แสดงรายชื่อหุ้นยอดฮิตแนะนำสำหรับการค้นหา")
     async def stock_popular(self, interaction: discord.Interaction):
-        embed = discord.Embed(
-            description="💡 **สนใจตัวไหน พิมพ์ `/stock [สัญลักษณ์]` แล้วผมจะเช็กราคาให้ทันทีครับ**",
-            color=0x3498db  # Material Blue
+        embed = make_embed(
+            self.bot,
+            "Stocks",
+            title="📊 หุ้นยอดนิยม",
+            description="เจอตัวที่สนใจแล้วใช้ `/stock` เดี๋ยวผมเช็กราคาให้เลย",
+            color=EmbedColor.INFO,
         )
-        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-        embed.set_author(name="หุ้นยอดนิยมที่น่ารู้จัก • Popular Tickers", icon_url=avatar_url)
         
         us_giants = (
             "• `AAPL` - Apple Inc.\n"

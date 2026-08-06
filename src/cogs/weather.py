@@ -5,6 +5,8 @@ from discord.ext import commands
 from discord import app_commands
 import aiohttp
 
+from ..ui import EmbedColor, make_embed, set_embed_author
+
 def get_weather_emoji(code: str) -> str:
     """Map weather code from WorldWeatherOnline (used by wttr.in) to standard emojis."""
     code_map = {
@@ -131,12 +133,12 @@ class WeatherCog(commands.Cog):
                         weather_emoji = get_weather_emoji(weather_code)
 
                         # Build Discord Embed
-                        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
                         embed = discord.Embed(
-                            description=f"📍 **สถานที่:** `{location_display}`\n☁️ **ลักษณะสภาพอากาศ:** {weather_emoji} **{weather_desc.strip()}**",
+                            title=f"{weather_emoji} อากาศที่ {location_display}",
+                            description=f"ตอนนี้ **{weather_desc.strip()}** • รู้สึกเหมือน `{feels_like_c}°C`",
                             color=embed_color
                         )
-                        embed.set_author(name="เช็กอากาศให้แล้ว • Weather", icon_url=avatar_url)
+                        set_embed_author(embed, self.bot, "Weather")
                         
                         embed.add_field(name="🌡️ อุณหภูมิปัจจุบัน", value=f"`{temp_c}°C`\n*(รู้สึกเหมือน `{feels_like_c}°C`)*", inline=True)
                         embed.add_field(name="💧 ความชื้นอากาศ", value=f"`{humidity}%`", inline=True)
@@ -149,19 +151,22 @@ class WeatherCog(commands.Cog):
 
                         await interaction.followup.send(embed=embed)
                     else:
-                        embed = discord.Embed(
-                            title="😅 เช็กอากาศให้ไม่ได้ในตอนนี้",
-                            description=f"บริการพยากรณ์อากาศตอบกลับไม่สำเร็จ (รหัส {response.status}) ลองใหม่อีกครั้งในอีกสักครู่นะครับ",
-                            color=0xe74c3c
+                        embed = make_embed(
+                            self.bot,
+                            "Weather",
+                            title="😅 ฟ้ายังไม่ส่งข่าวมา",
+                            description=f"บริการอากาศตอบกลับด้วยรหัส `{response.status}` รอสักครู่แล้วลองใหม่อีกทีนะ",
+                            color=EmbedColor.ERROR,
                         )
-                        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
                         await interaction.followup.send(embed=embed)
 
-        except Exception as e:
-            embed = discord.Embed(
-                title="😅 เช็กอากาศให้ไม่ได้ในตอนนี้",
-                description="ขอโทษนะ ตอนนี้ผมติดต่อบริการพยากรณ์อากาศไม่ได้ ลองใหม่อีกครั้งในอีกสักครู่ครับ",
-                color=0xe74c3c
+        except Exception:
+            embed = make_embed(
+                self.bot,
+                "Weather",
+                title="😅 ฟ้ายังไม่ส่งข่าวมา",
+                description="บริการอากาศเงียบไปนิดนึง รอสักครู่แล้วให้ผมเช็กใหม่อีกทีนะ",
+                color=EmbedColor.ERROR,
             )
             await interaction.followup.send(embed=embed)
 

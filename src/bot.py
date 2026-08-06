@@ -10,6 +10,7 @@ from discord.ext import commands
 
 from .services.database import Database
 from .services.typhoon import TyphoonService
+from .ui import EmbedColor, make_embed
 
 
 logger = logging.getLogger("discord.javis")
@@ -86,18 +87,22 @@ async def ask(interaction: discord.Interaction, prompt: str) -> None:
         answer = response.text
     except Exception:
         logger.exception("Typhoon request failed")
-        answer = "ขอโทษนะ ตอนนี้ผมคุยกับ Typhoon ไม่สำเร็จ ลองถามใหม่อีกครั้งในอีกสักครู่นะครับ 🙏"
+        answer = "อุ๊ปส์ ตอนนี้ผมต่อกับ Typhoon ไม่ติด ลองถามใหม่อีกทีในอีกสักครู่นะ 🙏"
 
-    embed = discord.Embed(
-        color=0x1A73E8
+    display_prompt = prompt
+    if len(display_prompt) > 700:
+        display_prompt = display_prompt[:697].rstrip() + "..."
+    if len(answer) > 3000:
+        answer = answer[:2960].rstrip() + "\n\n*คำตอบยาวมาก เลยย่อส่วนท้ายไว้นิดนึงนะ*"
+    embed = make_embed(
+        bot,
+        "AI Chat",
+        description=(
+            f"**💬 คุณถามว่า**\n> {display_prompt}\n\n"
+            f"**✨ คำตอบจากผม**\n{answer}"
+        ),
+        color=EmbedColor.PRIMARY,
     )
-    avatar_url = bot.user.display_avatar.url if bot.user else None
-    embed.set_author(name="Javis AI • มาคุยกันเถอะ", icon_url=avatar_url)
-    embed.add_field(name="💬 คำถามของคุณ", value=f">>> {prompt}", inline=False)
-    # Truncate answer if too long
-    if len(answer) > 2000:
-        answer = answer[:1980] + "\n...(คำตอบยาวเกินไป ถูกจำกัดการแสดงผล)..."
-    embed.add_field(name="🤖 คำตอบของผม", value=answer, inline=False)
 
     await interaction.followup.send(embed=embed)
 
@@ -105,9 +110,12 @@ async def ask(interaction: discord.Interaction, prompt: str) -> None:
 @bot.tree.command(name="reset-chat", description="ล้างประวัติการสนทนาของช่องนี้")
 async def reset_chat(interaction: discord.Interaction) -> None:
     bot.ai_service.reset_chat(interaction.channel_id)
-    embed = discord.Embed(
-        description="🧹 **ล้างประวัติแชทให้แล้วนะ!** เริ่มคุยเรื่องใหม่กันได้เลยครับ",
-        color=0x2ECC71,
+    embed = make_embed(
+        bot,
+        "AI Chat",
+        title="🧹 เริ่มบทสนทนาใหม่แล้ว",
+        description="เคลียร์เรื่องเก่าให้เรียบร้อย เริ่มคุยเรื่องใหม่กันได้เลย!",
+        color=EmbedColor.SUCCESS,
     )
     await interaction.response.send_message(embed=embed)
 
@@ -118,11 +126,11 @@ async def on_app_command_error(
     error: app_commands.AppCommandError,
 ) -> None:
     if isinstance(error, app_commands.CommandOnCooldown):
-        message = f"ใช้งานถี่เกินไป กรุณารอ `{error.retry_after:.1f}` วินาที"
+        message = f"ใจเย็นนิดนึงนะ รออีก `{error.retry_after:.1f}` วินาทีแล้วลองใหม่ได้เลย"
     elif isinstance(error, app_commands.MissingPermissions):
-        message = "คุณไม่มีสิทธิ์เพียงพอสำหรับคำสั่งนี้"
+        message = "คำสั่งนี้ต้องใช้สิทธิ์ผู้ดูแลเพิ่มอีกนิดนะ"
     else:
-        message = "คำสั่งทำงานไม่สำเร็จ กรุณาลองใหม่ภายหลัง"
+        message = "อุ๊ปส์ คำสั่งสะดุดนิดหน่อย ลองใหม่อีกทีนะ"
         root_error = getattr(error, "original", error)
         logger.error(
             "Application command failed: %s",
