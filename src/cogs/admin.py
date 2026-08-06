@@ -113,13 +113,24 @@ class AdminCog(commands.Cog):
                 ephemeral=True,
             )
             return
+        digest_enabled = bool(row.get("digest_enabled", 0))
+        try:
+            digest_hour = int(row.get("digest_hour", 8))
+            digest_minute = int(row.get("digest_minute", 0))
+        except (TypeError, ValueError):
+            digest_hour, digest_minute = 8, 0
+        if not 0 <= digest_hour <= 23:
+            digest_hour = 8
+        if not 0 <= digest_minute <= 59:
+            digest_minute = 0
+        timezone_name = str(row.get("timezone") or "Asia/Bangkok")
         embed = make_embed(
             self.bot,
             "Settings",
             title="⚙️ ตั้งค่าบอทในเซิร์ฟเวอร์นี้",
             description=(
-                f"**Morning Digest** {'🟢 เปิดอยู่' if row['digest_enabled'] else '⚪ ปิดอยู่'}\n"
-                f"**เวลาส่ง** `{row['digest_hour']:02d}:{row['digest_minute']:02d}` • `{row['timezone']}`\n\n"
+                f"**Morning Digest** {'🟢 เปิดอยู่' if digest_enabled else '⚪ ปิดอยู่'}\n"
+                f"**เวลาส่ง** `{digest_hour:02d}:{digest_minute:02d}` • `{timezone_name}`\n\n"
                 "เลือกตั้งค่าต่อจากปุ่มด้านล่างได้เลย หน้านี้เห็นเฉพาะคุณนะ"
             ),
             color=EmbedColor.PRIMARY,

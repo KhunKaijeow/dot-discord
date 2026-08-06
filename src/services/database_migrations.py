@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 import sqlite3
-from typing import Sequence
+from typing import Callable, Sequence
 
 
 logger = logging.getLogger("javis.database_migrations")
@@ -21,6 +21,69 @@ class Migration:
     version: int
     name: str
     statements: tuple[str, ...]
+    operation: Callable[[sqlite3.Connection], None] | None = None
+
+
+def _repair_legacy_guild_settings(connection: sqlite3.Connection) -> None:
+    """Add columns omitted by early schemas and normalize unsafe legacy values."""
+    columns = {
+        str(row[1])
+        for row in connection.execute("PRAGMA table_info(guild_settings)")
+    }
+    definitions = {
+        "timezone": "TEXT NOT NULL DEFAULT 'Asia/Bangkok'",
+        "digest_enabled": (
+            "INTEGER NOT NULL DEFAULT 0 CHECK (digest_enabled IN (0, 1))"
+        ),
+        "digest_channel_id": "INTEGER",
+        "digest_hour": (
+            "INTEGER NOT NULL DEFAULT 8 CHECK (digest_hour BETWEEN 0 AND 23)"
+        ),
+        "digest_minute": (
+            "INTEGER NOT NULL DEFAULT 0 CHECK (digest_minute BETWEEN 0 AND 59)"
+        ),
+        "digest_city": "TEXT NOT NULL DEFAULT 'Bangkok'",
+        "alert_channel_id": "INTEGER",
+        "last_digest_date": "TEXT",
+    }
+    for name, definition in definitions.items():
+        if name not in columns:
+            connection.execute(
+                f"ALTER TABLE guild_settings ADD COLUMN {name} {definition}"
+            )
+
+    connection.execute(
+        """
+        UPDATE guild_settings
+        SET timezone = CASE
+                WHEN timezone IS NULL OR trim(CAST(timezone AS TEXT)) = ''
+                    THEN 'Asia/Bangkok'
+                ELSE trim(CAST(timezone AS TEXT))
+            END,
+            digest_enabled = CASE
+                WHEN CAST(digest_enabled AS INTEGER) = 1 THEN 1 ELSE 0
+            END,
+            digest_hour = CASE
+                WHEN trim(CAST(digest_hour AS TEXT)) <> ''
+                    AND trim(CAST(digest_hour AS TEXT)) NOT GLOB '*[^0-9]*'
+                    AND CAST(digest_hour AS INTEGER) BETWEEN 0 AND 23
+                    THEN CAST(digest_hour AS INTEGER)
+                ELSE 8
+            END,
+            digest_minute = CASE
+                WHEN trim(CAST(digest_minute AS TEXT)) <> ''
+                    AND trim(CAST(digest_minute AS TEXT)) NOT GLOB '*[^0-9]*'
+                    AND CAST(digest_minute AS INTEGER) BETWEEN 0 AND 59
+                    THEN CAST(digest_minute AS INTEGER)
+                ELSE 0
+            END,
+            digest_city = CASE
+                WHEN digest_city IS NULL OR trim(CAST(digest_city AS TEXT)) = ''
+                    THEN 'Bangkok'
+                ELSE trim(CAST(digest_city AS TEXT))
+            END
+        """
+    )
 
 
 MIGRATIONS = (
@@ -129,6 +192,12 @@ MIGRATIONS = (
             """,
         ),
     ),
+    Migration(
+        version=3,
+        name="repair_legacy_guild_settings",
+        statements=(),
+        operation=_repair_legacy_guild_settings,
+    ),
 )
 
 LATEST_SCHEMA_VERSION = MIGRATIONS[-1].version
@@ -189,6 +258,8 @@ def apply_migrations(
             connection.execute("BEGIN IMMEDIATE")
             for statement in migration.statements:
                 connection.execute(statement)
+            if migration.operation is not None:
+                migration.operation(connection)
             connection.execute(
                 """
                 INSERT INTO schema_migrations(version, name, applied_at)

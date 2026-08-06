@@ -80,6 +80,9 @@ Schema จัดการผ่าน migration registry ใน `src/services/da
 ชื่อหรือ SQL ของ migration ที่ deploy ไปแล้ว และควรสำรอง `data/javis.db` ก่อน deploy
 schema change ที่มีการย้ายหรือแปลงข้อมูล
 
+Migration `v3 repair_legacy_guild_settings` เติมคอลัมน์ที่อาจขาดจากฐานข้อมูลรุ่นเก่า
+และ normalize ค่าเวลา/Timezone ก่อนที่ `/settings` และ background workers จะอ่าน
+
 ข้อมูลใน `data/javis.db` ได้แก่:
 
 - การตั้งค่า Morning Digest และห้อง Price Alert ต่อ Server

@@ -36,16 +36,34 @@ class DatabaseMigrationTests(unittest.TestCase):
 
     def test_existing_unversioned_schema_is_adopted_without_data_loss(self):
         with sqlite3.connect(self.path) as connection:
-            connection.execute(MIGRATIONS[0].statements[0])
             connection.execute(
-                "INSERT INTO guild_settings(guild_id, timezone) VALUES (?, ?)",
-                (123, "Asia/Tokyo"),
+                """
+                CREATE TABLE guild_settings (
+                    guild_id INTEGER PRIMARY KEY,
+                    timezone TEXT,
+                    digest_hour INTEGER,
+                    digest_minute INTEGER
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO guild_settings(
+                    guild_id, timezone, digest_hour, digest_minute
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (123, "Asia/Tokyo", "bad", "75"),
             )
 
         database = Database(self.path)
 
         self.assertEqual(database.schema_version(), LATEST_SCHEMA_VERSION)
-        self.assertEqual(database.get_settings(123)["timezone"], "Asia/Tokyo")
+        settings = database.get_settings(123)
+        self.assertEqual(settings["timezone"], "Asia/Tokyo")
+        self.assertEqual(settings["digest_hour"], 8)
+        self.assertEqual(settings["digest_minute"], 0)
+        self.assertEqual(settings["digest_city"], "Bangkok")
+        self.assertEqual(settings["digest_enabled"], 0)
 
     def test_failed_migration_rolls_back_its_schema_and_history(self):
         migrations = (

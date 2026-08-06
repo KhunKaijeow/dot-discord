@@ -2,8 +2,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+from src.cogs.admin import AdminCog
 from src.cogs.dashboard import DashboardCog
 from src.cogs.deals_notifier import DealsNotifierCog
 from src.cogs.privacy import PrivacyCog
@@ -72,6 +73,27 @@ class DataCommandTests(unittest.IsolatedAsyncioTestCase):
         await PrivacyCog.my_data_delete.callback(cog, self.interaction, True)
         self.assertEqual(self.database.user_data_counts(10)["reminders"], 0)
         self.assertEqual(self.interaction.response.send_message.await_count, 2)
+
+    async def test_settings_command_normalizes_legacy_display_values(self):
+        bot = MagicMock()
+        bot.user.display_avatar.url = "https://example.com/avatar.png"
+        bot.database.get_settings.return_value = {
+            "digest_enabled": None,
+            "digest_hour": "bad",
+            "digest_minute": None,
+            "timezone": None,
+        }
+        interaction = MagicMock()
+        interaction.guild.id = 1
+        interaction.user.id = 10
+        interaction.response.send_message = AsyncMock()
+
+        with patch("src.cogs.admin.can_manage_guild", return_value=True):
+            await AdminCog.settings.callback(AdminCog(bot), interaction)
+
+        embed = interaction.response.send_message.await_args.kwargs["embed"]
+        self.assertIn("`08:00`", embed.description)
+        self.assertIn("`Asia/Bangkok`", embed.description)
 
 
 if __name__ == "__main__":
