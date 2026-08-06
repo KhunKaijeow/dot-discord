@@ -88,6 +88,7 @@
 | `/digest status` | ดูสถานะ Morning Digest |
 | `/digest disable` | ปิด Morning Digest |
 | `/settings` | เปิด Admin Control Panel แบบ Interactive |
+| `/setup-check` | ตรวจ permissions, config, database และ runtime ของบอท |
 | `/bot-status` | ดู latency, uptime, runtime และจำนวนงานที่บันทึกไว้ |
 
 เมนู **Apps** เมื่อคลิกขวาข้อความมี `AI: สรุปข้อความ`, `AI: แปลเป็นไทย`
@@ -229,7 +230,7 @@ python main.py
 เมื่อเชื่อมต่อสำเร็จจะเห็นข้อความลักษณะนี้:
 
 ```text
-Synced 55 command(s)
+Synced 59 command(s)
 Logged in as ...
 ```
 

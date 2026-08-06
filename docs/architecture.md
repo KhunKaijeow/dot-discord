@@ -51,7 +51,7 @@ circular import
 | Content | `news.py`, `translator.py`, `draw.py` | Google News RSS, Google Translate และ Together AI FLUX.1 |
 | Utility | `weather.py`, `valorant.py`, `horoscope.py`, `privacy.py` | wttr.in, HenrikDev, Prokerala, Wikimedia และคำสั่งจัดการข้อมูลส่วนตัว |
 | Automation | `reminder.py`, `dashboard.py`, `morning_digest.py`, `x_notifier.py`, `deals_notifier.py` | งานตามเวลาและการแจ้งเตือนอัตโนมัติ |
-| Administration | `admin.py`, `health.py` | การตั้งค่าระดับ Server และข้อมูลสุขภาพของ bot |
+| Administration | `admin.py`, `health.py`, `setup_check.py` | การตั้งค่าระดับ Server, deployment diagnostics และข้อมูลสุขภาพของ bot |
 
 การเชื่อมต่อ HTTP ที่โค้ดเรียกโดยตรงผ่าน `services/http_client.py` โดย `JavisBot`
 สร้าง client หนึ่งครั้งก่อนโหลด Cog และปิดในช่วง shutdown ฝั่ง async ใช้

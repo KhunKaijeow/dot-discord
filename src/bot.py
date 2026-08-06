@@ -37,6 +37,7 @@ COG_EXTENSIONS = (
     "src.cogs.admin",
     "src.cogs.health",
     "src.cogs.privacy",
+    "src.cogs.setup_check",
     "src.cogs.ai_tools",
 )
 
@@ -53,6 +54,8 @@ class JavisBot(commands.Bot):
         self.ai_service = TyphoonService(http_client=self.external_http)
         self.database = Database()
         self.started_at = datetime.now(timezone.utc)
+        self.command_sync_succeeded: bool | None = None
+        self.command_sync_count = 0
 
     async def setup_hook(self) -> None:
         await self.external_http.start()
@@ -60,8 +63,11 @@ class JavisBot(commands.Bot):
             await self.load_extension(extension)
         try:
             synced = await self.tree.sync()
+            self.command_sync_succeeded = True
+            self.command_sync_count = len(synced)
             logger.info("Synced %d command(s)", len(synced))
         except Exception:
+            self.command_sync_succeeded = False
             logger.exception("Failed to sync application commands")
 
     async def close(self) -> None:
