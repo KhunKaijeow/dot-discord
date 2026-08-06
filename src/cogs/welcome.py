@@ -83,7 +83,7 @@ class ImagesModal(discord.ui.Modal):
             required=False
         )
         self.thumbnail_mode = discord.ui.TextInput(
-            label="Thumbnail Mode (User Avatar / Server Icon / None)",
+            label="Thumbnail Mode (Avatar/Icon/None)",
             default=current_config.get("thumbnail_mode") or "None",
             placeholder="User Avatar, Server Icon, or None",
             max_length=20,
