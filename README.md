@@ -130,6 +130,8 @@ Reminder, Price Alert, Morning Digest, Saved Playlists, Dashboard และก�
 - Python 3.12 หรือใหม่กว่า
 - FFmpeg และ Opus สำหรับระบบ Voice
 - Deno 2.3+ หรือ Node.js 22+ สำหรับให้ yt-dlp เล่นเพลงจาก YouTube
+- `yt-dlp-ejs` สำหรับแก้ JavaScript challenge ของ YouTube (ติดตั้งอัตโนมัติจาก
+  `yt-dlp[default]` ใน `requirements.txt`)
 - Discord Bot Token
 - Typhoon API Key
 - Together AI API Key (จำเป็นสำหรับคำสั่งวาดภาพ)
@@ -246,7 +248,11 @@ python -m unittest discover -s tests -v
 
 ชุดทดสอบครอบคลุม persistence/ownership ของ Reminder และ Price Alert,
 allowlist สำหรับการตั้งค่าและสัญลักษณ์ตลาด, rate limit ของ AI Message Tools
-และ CRUD ของ Saved Playlists
+CRUD ของ Saved Playlists และ runtime/fallback ของระบบเพลง
+
+หากระบบเพลงใช้งานไม่ได้ ให้เริ่มจาก `/setup-check` และตรวจว่า FFmpeg,
+JavaScript Runtime และ yt-dlp EJS แสดงสถานะพร้อม รวมถึงให้สิทธิ์ View Channel,
+Connect และ Speak แก่บอทในห้องเสียง
 
 ## Deploy บน Railway
 

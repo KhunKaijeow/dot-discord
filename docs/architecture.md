@@ -46,7 +46,7 @@ circular import
 | กลุ่ม | Cog/Service หลัก | รายละเอียด |
 | --- | --- | --- |
 | AI chat/tools | `bot.py`, `cogs/ai_tools.py`, `services/typhoon.py` | Typhoon AI, ประวัติแชทแยกตาม channel และ Context Menu 3 รายการ |
-| Music | `cogs/music.py`, `services/music_queue.py` | yt-dlp, FFmpeg/Opus, Spotify resolution, bounded queue และ Saved Playlists |
+| Music | `cogs/music.py`, `services/music_queue.py` | yt-dlp/EJS, FFmpeg/Opus, HLS fallback, Spotify resolution, bounded queue และ Saved Playlists |
 | Market | `cogs/stock.py`, `crypto.py`, `gold.py`, `price_alerts.py` | Yahoo Finance, Binance, กราฟ 30 วัน และ Price Alerts |
 | Content | `news.py`, `translator.py`, `draw.py` | Google News RSS, Google Translate และ Together AI FLUX.1 |
 | Utility | `help.py`, `weather.py`, `valorant.py`, `horoscope.py`, `privacy.py` | เมนูคำสั่งแบบ Interactive, wttr.in, HenrikDev, Prokerala, Wikimedia และคำสั่งจัดการข้อมูลส่วนตัว |

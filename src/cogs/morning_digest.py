@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+import logging
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -12,7 +13,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from .dashboard import channel_permission_problem
 from ..ui import EmbedColor, make_embed, set_embed_author
+
+
+logger = logging.getLogger("discord.morning_digest")
 
 
 class MorningDigestCog(commands.Cog):
@@ -75,12 +80,24 @@ class MorningDigestCog(commands.Cog):
         if not 1 <= len(city) <= 80 or any(char in city for char in "\r\n<>"):
             await interaction.response.send_message("ชื่อเมืองไม่ถูกต้อง", ephemeral=True)
             return
-        await asyncio.to_thread(
-            self.database.update_settings, interaction.guild.id,
-            digest_enabled=1, digest_channel_id=channel.id, digest_hour=hour,
-            digest_minute=minute, timezone=timezone_name.strip(), digest_city=city,
-            last_digest_date=None,
-        )
+        problem = channel_permission_problem(interaction.guild, channel)
+        if problem:
+            await interaction.response.send_message(problem, ephemeral=True)
+            return
+        try:
+            await asyncio.to_thread(
+                self.database.update_settings, interaction.guild.id,
+                digest_enabled=1, digest_channel_id=channel.id, digest_hour=hour,
+                digest_minute=minute, timezone=timezone_name.strip(), digest_city=city,
+                last_digest_date=None,
+            )
+        except Exception:
+            logger.exception("Digest setup failed for guild %s", interaction.guild.id)
+            await interaction.response.send_message(
+                "บันทึก Morning Digest ไม่สำเร็จ ลองใหม่อีกครั้งหรือตรวจ `/setup-check`",
+                ephemeral=True,
+            )
+            return
         await interaction.response.send_message(
             f"✅ Morning Digest จะส่งที่ {channel.mention} เวลา `{hour:02d}:{minute:02d}` ({timezone_name})",
             ephemeral=True,
@@ -95,6 +112,7 @@ class MorningDigestCog(commands.Cog):
                 city = (await asyncio.to_thread(self.database.get_settings, interaction.guild.id))["digest_city"]
             await interaction.followup.send(embed=await self._build(city), ephemeral=True)
         except Exception:
+            logger.exception("Digest preview failed")
             await interaction.followup.send("Digest สะดุดนิดหน่อย ลองเปิดตัวอย่างใหม่อีกทีนะ", ephemeral=True)
 
     @digest.command(name="disable", description="ปิด Morning Digest")
@@ -137,11 +155,16 @@ class MorningDigestCog(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def digest_worker(self):
-        settings = await asyncio.to_thread(self.database.all_digest_settings)
+        try:
+            settings = await asyncio.to_thread(self.database.all_digest_settings)
+        except Exception:
+            logger.exception("Could not load digest schedules")
+            return
         for row in settings:
             try:
                 now = datetime.now(ZoneInfo(row["timezone"]))
             except (ZoneInfoNotFoundError, ValueError):
+                logger.warning("Invalid digest timezone for guild %s", row["guild_id"])
                 continue
             today = now.date().isoformat()
             if now.hour != row["digest_hour"] or now.minute < row["digest_minute"] or row["last_digest_date"] == today:
@@ -152,8 +175,19 @@ class MorningDigestCog(commands.Cog):
             try:
                 await channel.send(embed=await self._build(row["digest_city"]))
             except (discord.Forbidden, discord.HTTPException, RuntimeError):
+                logger.exception("Could not deliver digest for guild %s", row["guild_id"])
                 continue
-            await asyncio.to_thread(self.database.update_settings, row["guild_id"], last_digest_date=today)
+            except Exception:
+                logger.exception("Digest build failed for guild %s", row["guild_id"])
+                continue
+            try:
+                await asyncio.to_thread(
+                    self.database.update_settings,
+                    row["guild_id"],
+                    last_digest_date=today,
+                )
+            except Exception:
+                logger.exception("Could not mark digest delivered for guild %s", row["guild_id"])
 
     @digest_worker.before_loop
     async def before_digest(self):

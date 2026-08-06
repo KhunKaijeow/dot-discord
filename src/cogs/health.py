@@ -10,7 +10,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from .music import FFMPEG_EXECUTABLE, YTDL_OPTIONS, music_states
+from .music import EJS_AVAILABLE, FFMPEG_EXECUTABLE, YTDL_OPTIONS, music_states
 from ..ui import EmbedColor, make_embed
 
 
@@ -43,7 +43,11 @@ class HealthCog(commands.Cog):
         )
         embed.add_field(
             name="🎵 ระบบเพลง",
-            value=f"เพลงในคิว `{queued}`  •  FFmpeg `{'พร้อม' if FFMPEG_EXECUTABLE else 'ยังไม่พร้อม'}`",
+            value=(
+                f"เพลงในคิว `{queued}`  •  "
+                f"FFmpeg `{'พร้อม' if FFMPEG_EXECUTABLE else 'ยังไม่พร้อม'}`  •  "
+                f"EJS `{'พร้อม' if EJS_AVAILABLE else 'ยังไม่พร้อม'}`"
+            ),
             inline=False,
         )
         if interaction.permissions.manage_guild:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import importlib.util
 import logging
 import shlex
 import shutil
@@ -30,6 +31,8 @@ SPOTIFY_OEMBED_URL = "https://open.spotify.com/oembed"
 SPOTIFY_HOSTS = {"open.spotify.com", "spotify.link"}
 YOUTUBE_HOSTS = {"youtube.com", "music.youtube.com", "youtu.be"}
 YOUTUBE_WATCH_URL = "https://www.youtube.com/watch?v={video_id}"
+YOUTUBE_AUDIO_CLIENTS = ("android_vr", "web_safari")
+EJS_AVAILABLE = importlib.util.find_spec("yt_dlp_ejs") is not None
 
 
 class MusicError(Exception):
@@ -61,7 +64,7 @@ def _javascript_runtimes() -> dict[str, dict[str, str]]:
 
 
 YTDL_OPTIONS = {
-    "format": "bestaudio[protocol^=http]/bestaudio/best",
+    "format": "bestaudio[protocol^=m3u8]/bestaudio[protocol^=http]/bestaudio/best",
     "noplaylist": True,
     "ignoreerrors": False,
     "quiet": True,
@@ -109,6 +112,10 @@ def _extract_youtube_info(query: str, *, flat: bool) -> dict[str, Any]:
     options = dict(YTDL_OPTIONS)
     if flat:
         options["extract_flat"] = "in_playlist"
+    else:
+        options["extractor_args"] = {
+            "youtube": {"player_client": list(YOUTUBE_AUDIO_CLIENTS)}
+        }
 
     with yt_dlp.YoutubeDL(options) as ytdl:
         return _first_entry(ytdl.extract_info(query, download=False))
@@ -403,6 +410,7 @@ class YouTubeAudioSource(discord.PCMVolumeTransformer):
         headers = data.get("http_headers") or {}
         header_text = "".join(f"{key}: {value}\r\n" for key, value in headers.items())
         before_options = "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5"
+        before_options += " -rw_timeout 15000000"
         if header_text:
             before_options += f" -headers {shlex.quote(header_text)}"
         audio = discord.FFmpegPCMAudio(
@@ -547,14 +555,26 @@ class GuildMusicState:
         if error:
             logger.error("Playback error in guild %s: %s", self.guild_id, error)
         future = asyncio.run_coroutine_threadsafe(
-            self._continue_after_track(),
+            self._continue_after_track(error),
             self.bot.loop,
         )
         future.add_done_callback(self._log_callback_error)
 
-    async def _continue_after_track(self) -> None:
+    async def _continue_after_track(self, playback_error: Exception | None = None) -> None:
         finished = self.current
-        if finished and not self.skip_requested:
+        if playback_error and self.text_channel:
+            try:
+                await self.text_channel.send(
+                    embed=make_notice_embed(
+                        self.bot,
+                        "Music",
+                        "สตรีมเสียงขาดการเชื่อมต่อ กำลังลองเพลงถัดไป",
+                        color=EmbedColor.ERROR,
+                    )
+                )
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+        if finished and not self.skip_requested and playback_error is None:
             if self.loop_mode == "track":
                 self.queue.appendleft(finished)
             elif self.loop_mode == "queue":
@@ -620,6 +640,29 @@ def user_can_control_voice(interaction: discord.Interaction) -> bool:
         return True
     user_voice = getattr(interaction.user, "voice", None)
     return bool(user_voice and user_voice.channel == interaction.guild.voice_client.channel)
+
+
+def voice_permission_problem(
+    interaction: discord.Interaction,
+) -> str | None:
+    """Return missing bot voice permissions for the invoking member's channel."""
+    guild = interaction.guild
+    user_voice = getattr(interaction.user, "voice", None)
+    voice_channel = getattr(user_voice, "channel", None)
+    bot_member = guild.me if guild else None
+    if guild is None or voice_channel is None or bot_member is None:
+        return None
+    permissions = voice_channel.permissions_for(bot_member)
+    missing = []
+    if not permissions.connect:
+        missing.append("Connect")
+    if not permissions.speak:
+        missing.append("Speak")
+    if not permissions.view_channel:
+        missing.append("View Channel")
+    if not missing:
+        return None
+    return f"บอทยังขาดสิทธิ์ในห้องเสียงนี้: {', '.join(missing)}"
 
 
 class MusicControlView(discord.ui.View):
@@ -746,11 +789,21 @@ class MusicCog(commands.Cog):
                 ephemeral=True,
             )
             return
+        if not discord.opus.is_loaded():
+            await interaction.followup.send(
+                "🔇 เครื่องที่รันบอทยังโหลด Opus ไม่สำเร็จ",
+                ephemeral=True,
+            )
+            return
         if not interaction.guild or not interaction.user.voice:
             await interaction.followup.send(
                 "🎧 เข้าห้องเสียงก่อน แล้วเรียก `/play` ใหม่อีกทีนะ",
                 ephemeral=True,
             )
+            return
+        permission_problem = voice_permission_problem(interaction)
+        if permission_problem:
+            await interaction.followup.send(permission_problem, ephemeral=True)
             return
 
         try:
@@ -1389,6 +1442,10 @@ async def setup(bot: commands.Bot) -> None:
         logger.warning(
             "No supported JavaScript runtime found; install Node.js 22+ "
             "or Deno 2.3+ for reliable YouTube extraction"
+        )
+    if not EJS_AVAILABLE:
+        logger.error(
+            "yt-dlp-ejs was not found; install yt-dlp with the default extras"
         )
     load_opus()
     await bot.add_cog(MusicCog(bot))

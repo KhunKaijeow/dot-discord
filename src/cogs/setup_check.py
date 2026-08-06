@@ -21,7 +21,7 @@ from ..config import (
 )
 from ..services.database_migrations import LATEST_SCHEMA_VERSION
 from ..ui import EmbedColor, make_embed
-from .music import FFMPEG_EXECUTABLE, YTDL_OPTIONS
+from .music import EJS_AVAILABLE, FFMPEG_EXECUTABLE, YTDL_OPTIONS
 
 
 logger = logging.getLogger("javis.setup_check")
@@ -191,16 +191,22 @@ class SetupCheckCog(commands.Cog):
                 "พร้อมเล่นเสียง" if FFMPEG_EXECUTABLE else "ไม่พบ executable",
                 required=False,
             ),
-            CheckItem(
-                "JavaScript Runtime",
+        CheckItem(
+            "JavaScript Runtime",
                 bool(YTDL_OPTIONS["js_runtimes"]),
                 (
                     "พร้อมสำหรับ YouTube"
                     if YTDL_OPTIONS["js_runtimes"]
                     else "ไม่พบ Deno/Node/QuickJS"
                 ),
-                required=False,
-            ),
+            required=False,
+        ),
+        CheckItem(
+            "yt-dlp EJS",
+            EJS_AVAILABLE,
+            "พร้อมแก้ YouTube challenge" if EJS_AVAILABLE else "ไม่พบ yt-dlp-ejs",
+            required=False,
+        ),
         ]
         integrations = integration_checks()
         all_items = [*permissions, *core, *runtime, *integrations]
