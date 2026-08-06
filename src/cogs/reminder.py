@@ -51,17 +51,21 @@ class ReminderCog(commands.Cog):
             interaction.channel_id, clean_message, due_at, repeat_seconds,
         )
         timestamp = int(due_at.timestamp())
-        repeat_text = f" • ซ้ำทุก {repeat_seconds:,} วินาที" if repeat_seconds else ""
+        repeat_text = f"ทุก {repeat_seconds:,} วินาที" if repeat_seconds else "ครั้งเดียว"
         embed = make_embed(
             self.bot,
             "Reminder",
-            title="⏰ จดเวลาไว้ให้แล้ว",
-            description=(
-                f"**เตือนเมื่อ** <t:{timestamp}:F> • <t:{timestamp}:R>{repeat_text}\n"
-                f"**ข้อความ** {clean_message}\n\nID สำหรับยกเลิก: `{reminder_id}`"
-            ),
-            color=EmbedColor.INFO,
+            title="✅ ตั้ง Reminder แล้ว",
+            description=f"> {clean_message}",
+            color=EmbedColor.SUCCESS,
         )
+        embed.add_field(
+            name="⏰ แจ้งเตือนเมื่อ",
+            value=f"<t:{timestamp}:F>\n<t:{timestamp}:R>",
+            inline=True,
+        )
+        embed.add_field(name="🔁 รูปแบบ", value=repeat_text, inline=True)
+        embed.add_field(name="🆔 ID", value=f"`{reminder_id}`", inline=True)
         await interaction.response.send_message(
             embed=embed,
             ephemeral=True,
@@ -114,7 +118,7 @@ class ReminderCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Reminder",
-            title="⏰ รายการที่ผมจำไว้ให้",
+            title="⏰ Reminder ที่กำลังทำงาน",
             description=text,
             color=EmbedColor.INFO,
         )
@@ -139,7 +143,7 @@ class ReminderCog(commands.Cog):
                 embed = make_embed(
                     self.bot,
                     "Reminder",
-                    title="🔔 ถึงเวลาที่นัดกันไว้แล้ว",
+                    title="🔔 ถึงเวลาแล้ว",
                     description=row["message"],
                     color=EmbedColor.WARNING,
                 )

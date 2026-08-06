@@ -23,9 +23,10 @@ class HelpTests(unittest.IsolatedAsyncioTestCase):
     def test_overview_lists_every_category(self):
         embed = build_help_embed(self.make_bot())
 
-        self.assertEqual(len(embed.fields), len(HELP_CATEGORIES))
+        self.assertEqual(len(embed.fields), 2)
+        rendered_fields = "\n".join(field.value for field in embed.fields)
         for category in HELP_CATEGORIES:
-            self.assertTrue(any(category.label in field.name for field in embed.fields))
+            self.assertIn(category.label, rendered_fields)
 
     def test_category_page_lists_its_commands(self):
         embed = build_help_embed(self.make_bot(), "reminders")

@@ -27,18 +27,17 @@ class ValorantCog(commands.Cog):
             embed = make_embed(
                 self.bot,
                 "VALORANT",
-                title="🔑 ขอ API Key อีกนิดเดียว",
+                title="⚠️ ต้องตั้งค่า API Key",
                 description="ก่อนเช็กสถานะเกม ใส่คีย์ฟรีจาก HenrikDev ให้ผมก่อนนะ",
                 color=EmbedColor.WARNING,
             )
 
             embed.add_field(
-                name="📋 ตั้งค่าตามนี้ได้เลย:",
-                value="1️⃣ เข้าไปที่หน้าเว็บ [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/)\n"
-                      "2️⃣ ล็อกอินด้วยบัญชี Discord เพื่อเคลม **Basic API Key** ฟรี\n"
-                      "3️⃣ คัดลอกค่าคีย์บอร์ดที่ได้ (จะขึ้นต้นด้วย `HDEV-...`)\n"
-                      "4️⃣ นำไปใส่ในไฟล์ `.env` ช่องตัวแปร `VALORANT_API_KEY`\n"
-                      "5️⃣ รีสตาร์ทบอทหนึ่งรอบ แล้วกลับมาเช็กได้เลย",
+                name="วิธีตั้งค่า",
+                value="1. เปิด [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) และล็อกอิน\n"
+                      "2. สร้าง **Basic API Key** แล้วคัดลอกคีย์ `HDEV-...`\n"
+                      "3. ใส่ใน `.env` ที่ `VALORANT_API_KEY`\n"
+                      "4. รีสตาร์ทบอทแล้วลองอีกครั้ง",
                 inline=False
             )
             await interaction.followup.send(embed=embed)
@@ -59,8 +58,8 @@ class ValorantCog(commands.Cog):
                     # Build beautiful status embed
                     is_healthy = not maintenances and not incidents
                     embed = discord.Embed(
-                        title="🎮 สถานะเซิร์ฟเวอร์ VALORANT",
-                        description=f"กำลังดูภูมิภาค `{region.upper()}` ให้",
+                        title="🎮 สถานะ VALORANT",
+                        description=f"ภูมิภาค `{region.upper()}` • {'ระบบปกติ' if is_healthy else 'พบประกาศที่ควรตรวจสอบ'}",
                         color=0x2ecc71 if is_healthy else 0xff4655
                     )
                     set_embed_author(embed, self.bot, "VALORANT")
@@ -72,10 +71,10 @@ class ValorantCog(commands.Cog):
                             title = m.get("titles", [{}])[0].get("content", "การซ่อมบำรุงเซิร์ฟเวอร์")
                             updates = m.get("updates", [])
                             update_text = updates[0].get("translations", [{}])[0].get("content", "กำลังดำเนินการ") if updates else ""
-                            m_text += f"⚙️ **{title}**\n> *{update_text}*\n\n"
-                        embed.add_field(name="🛠️ กำลังปิดปรับปรุง (Maintenance)", value=m_text[:1024], inline=False)
+                            m_text += f"**{title}**\n> {update_text}\n\n"
+                        embed.add_field(name="🛠️ การปิดปรับปรุง", value=m_text[:1024], inline=False)
                     else:
-                        embed.add_field(name="🛠️ การปิดปรับปรุง", value="✅ ยังไม่มีตารางปิดปรับปรุง ตอนนี้เล่นได้ตามปกติ", inline=False)
+                        embed.add_field(name="🛠️ การปิดปรับปรุง", value="ไม่พบประกาศ", inline=True)
 
                     # Handle Incidents
                     if incidents:
@@ -84,17 +83,17 @@ class ValorantCog(commands.Cog):
                             title = inc.get("titles", [{}])[0].get("content", "พบข้อผิดพลาดของเซิร์ฟเวอร์")
                             updates = inc.get("updates", [])
                             update_text = updates[0].get("translations", [{}])[0].get("content", "กำลังแก้ไขปัญหา") if updates else ""
-                            i_text += f"🚨 **{title}**\n> *{update_text}*\n\n"
-                        embed.add_field(name="🚨 ปัญหาระบบเซิร์ฟเวอร์ (Incidents)", value=i_text[:1024], inline=False)
+                            i_text += f"**{title}**\n> {update_text}\n\n"
+                        embed.add_field(name="🚨 เหตุขัดข้อง", value=i_text[:1024], inline=False)
                     else:
-                        embed.add_field(name="🚨 เหตุขัดข้อง", value="✅ ทุกอย่างดูปกติดี ยังไม่มีปัญหาที่รายงานเข้ามา", inline=False)
+                        embed.add_field(name="🚨 เหตุขัดข้อง", value="ไม่พบรายงาน", inline=True)
 
                     await interaction.followup.send(embed=embed)
                 elif response.status == 401:
                     embed = make_embed(
                         self.bot,
                         "VALORANT",
-                        title="🔑 API Key ใช้งานไม่ได้แล้ว",
+                        title="❌ API Key ใช้งานไม่ได้",
                         description="คีย์ใน `.env` อาจหมดอายุ ลองสร้างใหม่ที่ [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) นะ",
                         color=EmbedColor.ERROR,
                     )
@@ -103,7 +102,7 @@ class ValorantCog(commands.Cog):
                     embed = make_embed(
                         self.bot,
                         "VALORANT",
-                        title="😅 สถานะเกมยังมาไม่ถึง",
+                        title="❌ โหลดสถานะเกมไม่สำเร็จ",
                         description=f"บริการตอบกลับด้วยรหัส `{response.status}` รอสักครู่แล้วลองใหม่อีกทีนะ",
                         color=EmbedColor.ERROR,
                     )
@@ -113,7 +112,7 @@ class ValorantCog(commands.Cog):
             embed = make_embed(
                 self.bot,
                 "VALORANT",
-                title="😅 สถานะเกมยังมาไม่ถึง",
+                title="❌ โหลดสถานะเกมไม่สำเร็จ",
                 description="บริการเงียบไปนิดนึง รอสักครู่แล้วลองใหม่อีกทีนะ",
                 color=EmbedColor.ERROR,
             )

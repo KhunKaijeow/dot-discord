@@ -48,6 +48,7 @@ class AIToolsCog(commands.Cog):
         interaction: discord.Interaction,
         message: discord.Message,
         instruction: str,
+        result_title: str,
     ) -> None:
         if self._rate_limited(interaction.user.id):
             await interaction.response.send_message("พักหายใจแป๊บนึงนะ ใช้ AI ได้ 3 ครั้งต่อนาที", ephemeral=True)
@@ -79,6 +80,7 @@ class AIToolsCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "AI Message Tools",
+            title=result_title,
             description=answer,
             color=EmbedColor.PRIMARY,
         )
@@ -88,13 +90,28 @@ class AIToolsCog(commands.Cog):
         )
 
     async def summarize(self, interaction: discord.Interaction, message: discord.Message):
-        await self._run(interaction, message, "สรุปสาระสำคัญของข้อความต่อไปนี้เป็นหัวข้อสั้น ๆ")
+        await self._run(
+            interaction,
+            message,
+            "สรุปสาระสำคัญของข้อความต่อไปนี้เป็นหัวข้อสั้น ๆ",
+            "📝 สรุปข้อความ",
+        )
 
     async def translate_thai(self, interaction: discord.Interaction, message: discord.Message):
-        await self._run(interaction, message, "แปลข้อความต่อไปนี้เป็นภาษาไทยโดยรักษาความหมายเดิม")
+        await self._run(
+            interaction,
+            message,
+            "แปลข้อความต่อไปนี้เป็นภาษาไทยโดยรักษาความหมายเดิม",
+            "🌐 คำแปลภาษาไทย",
+        )
 
     async def explain(self, interaction: discord.Interaction, message: discord.Message):
-        await self._run(interaction, message, "อธิบายข้อความต่อไปนี้ด้วยภาษาที่เข้าใจง่าย")
+        await self._run(
+            interaction,
+            message,
+            "อธิบายข้อความต่อไปนี้ด้วยภาษาที่เข้าใจง่าย",
+            "💡 คำอธิบาย",
+        )
 
 
 async def setup(bot):

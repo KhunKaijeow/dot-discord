@@ -244,16 +244,25 @@ class XNotifierCog(commands.Cog):
         )
         if channel_id:
             channel_text = channel.mention if channel else f"หาไม่เจอ (ID `{channel_id}`)"
-            status_text = f"🟢 **เปิดอยู่**\n**ส่งข่าวที่** {channel_text}\n**โพสต์ที่จำไว้** `{count}` โพสต์"
+            status_text = "🟢 เปิดใช้งานอยู่"
         else:
-            status_text = "⚪ **ยังไม่ได้เปิด**\nใช้ `/x-setup` เลือกห้องรับข่าวได้เลย"
+            channel_text = "ยังไม่ได้เลือก"
+            status_text = "⚪ ปิดใช้งานอยู่"
         embed = make_embed(
             self.bot,
             "sheapgamer",
-            title="🔍 ระบบตามข่าวตอนนี้",
+            title="🔔 สถานะการติดตามข่าว",
             description=status_text,
             color=EmbedColor.INFO,
         )
+        embed.add_field(name="📍 ห้อง", value=channel_text, inline=True)
+        embed.add_field(name="🗂️ โพสต์ที่จำไว้", value=f"`{count}`", inline=True)
+        if not channel_id:
+            embed.add_field(
+                name="เริ่มใช้งาน",
+                value="ใช้ `/x-setup` เพื่อเลือกห้องรับข่าว",
+                inline=False,
+            )
         await interaction.response.send_message(embed=embed)
 
 

@@ -34,13 +34,23 @@ class PrivacyCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Privacy",
-            title="🗂️ ข้อมูลที่ผมจำไว้ให้คุณ",
+            title="🔐 ข้อมูลของคุณ",
             description=(
-                f"{format_counts(counts)}\n\n"
-                "ข้อมูลชุดนี้รวมทุก Server ที่คุณใช้บอท และมีเพียงคุณที่เห็นข้อความนี้\n"
-                "ประวัติ AI และคิวเพลงเป็นข้อมูลชั่วคราวต่อห้อง จึงไม่รวมในรายการนี้"
+                "รวมข้อมูลจากทุก Server ที่คุณใช้ Javis • หน้านี้เห็นเฉพาะคุณ"
             ),
             color=EmbedColor.INFO,
+        )
+        embed.add_field(name="⏰ Reminder", value=f"`{counts['reminders']}`", inline=True)
+        embed.add_field(name="🔔 Price Alert", value=f"`{counts['alerts']}`", inline=True)
+        embed.add_field(
+            name="🎵 Saved Playlist",
+            value=f"`{counts['playlists']}` รายการ\n`{counts['playlist_tracks']}` เพลง",
+            inline=True,
+        )
+        embed.add_field(
+            name="ℹ️ ข้อมูลชั่วคราว",
+            value="ประวัติ AI และคิวเพลงไม่ถูกเก็บในฐานข้อมูล",
+            inline=False,
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -74,13 +84,16 @@ class PrivacyCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Privacy",
-            title="✅ ล้างข้อมูลส่วนตัวให้แล้ว",
-            description=(
-                f"{format_counts(removed)}\n\n"
-                "ลบข้อมูลถาวรเสร็จแล้วและย้อนกลับไม่ได้นะ "
-                "ส่วนประวัติ AI และคิวเพลงเป็นข้อมูลชั่วคราวต่อห้อง"
-            ),
+            title="✅ ลบข้อมูลส่วนตัวแล้ว",
+            description="ลบข้อมูลถาวรเรียบร้อยและไม่สามารถย้อนกลับได้",
             color=EmbedColor.SUCCESS,
+        )
+        embed.add_field(name="⏰ Reminder", value=f"`{removed['reminders']}`", inline=True)
+        embed.add_field(name="🔔 Price Alert", value=f"`{removed['alerts']}`", inline=True)
+        embed.add_field(
+            name="🎵 Saved Playlist",
+            value=f"`{removed['playlists']}` รายการ\n`{removed['playlist_tracks']}` เพลง",
+            inline=True,
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 

@@ -527,7 +527,8 @@ class GuildMusicState:
             else "ไม่ทราบ"
         )
         embed = discord.Embed(
-            description=f"🎵 **[{source.title}]({track.youtube_url})**",
+            title="🎵 กำลังเล่น",
+            description=f"**[{source.title}]({track.youtube_url})**",
             color=EmbedColor.MUSIC,
         )
         set_embed_author(embed, self.bot, "Music • กำลังเล่น")
@@ -583,8 +584,8 @@ class GuildMusicState:
             embed = make_embed(
                 self.bot,
                 "Music",
-                title="👋 คิวหมดแล้วนะ",
-                description="เพลงจบครบทุกเพลงแล้ว ผมออกจากห้องเสียงให้เรียบร้อย ไว้เปิดเพลงด้วยกันใหม่!",
+                title="🏁 เล่นครบทุกเพลงแล้ว",
+                description="คิวว่างและออกจากห้องเสียงเรียบร้อย ใช้ `/play` เพื่อเริ่มใหม่ได้เลย",
                 color=EmbedColor.INFO,
             )
             await self.text_channel.send(embed=embed)
@@ -818,7 +819,8 @@ class MusicCog(commands.Cog):
         else:
             track = tracks[0]
             embed = discord.Embed(
-                description=f"🎵 **[{track.title}]({track.youtube_url})**",
+                title="🎵 กำลังเล่น" if is_playing_now else "📥 เพิ่มเข้าคิวแล้ว",
+                description=f"**[{track.title}]({track.youtube_url})**",
                 color=EmbedColor.SUCCESS if is_playing_now else EmbedColor.INFO,
             )
             set_embed_author(
@@ -906,14 +908,14 @@ class MusicCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Music",
-            title="🎶 คิวเพลงของเรา",
+            title="🎶 คิวเพลง",
             description=f"มีเพลงรออยู่ `{len(state.queue)}` เพลง",
             color=EmbedColor.MUSIC,
         )
         if state.current:
             embed.add_field(
                 name="▶️ ตอนนี้กำลังเล่น",
-                value=f"▶️ **[{state.current.title}]({state.current.youtube_url})**",
+                value=f"**[{state.current.title}]({state.current.youtube_url})**",
                 inline=False,
             )
         else:
@@ -952,7 +954,7 @@ class MusicCog(commands.Cog):
             self.bot,
             "Music",
             title="🎵 เพลงที่กำลังเล่น",
-            description=f"🎵 **[{state.current.title}]({state.current.youtube_url})**",
+            description=f"**[{state.current.title}]({state.current.youtube_url})**",
             color=EmbedColor.MUSIC,
         )
         embed.add_field(name="🔊 ระดับเสียง", value=f"`{int(state.volume * 100)}%`", inline=True)
@@ -1127,16 +1129,16 @@ class MusicCog(commands.Cog):
             await asyncio.to_thread(self.bot.database.save_playlist, user_id, name, track_tuples)
             
             action_text = "เขียนทับ" if is_overwrite else "บันทึก"
+            playlist_total = playlist_count if is_overwrite else playlist_count + 1
             embed = make_embed(
                 self.bot,
                 "Music • Playlist",
-                title="💾 เก็บเพลย์ลิสต์ไว้ให้แล้ว",
-                description=(
-                    f"**ชื่อ** `{name}`\n"
-                    f"**จำนวน** `{len(track_tuples)}` เพลง • {action_text}เรียบร้อย"
-                ),
+                title="✅ บันทึกเพลย์ลิสต์แล้ว",
+                description=f"{action_text} `{name}` เรียบร้อย",
                 color=EmbedColor.SUCCESS,
             )
+            embed.add_field(name="🎵 จำนวนเพลง", value=f"`{len(track_tuples)}`", inline=True)
+            embed.add_field(name="📚 เพลย์ลิสต์ทั้งหมด", value=f"`{playlist_total}` / `10`", inline=True)
             await interaction.followup.send(embed=embed)
             
         except Exception as e:
@@ -1250,8 +1252,8 @@ class MusicCog(commands.Cog):
             embed = make_embed(
                 self.bot,
                 "Music • Playlist",
-                title="🎶 โหลดเพลย์ลิสต์ให้แล้ว",
-                description=f"เพลงจาก `{name}` เข้าแถวรอครบ `{len(tracks)}` เพลงแล้ว ไปฟังกันเลย!",
+                title="✅ โหลดเพลย์ลิสต์แล้ว",
+                description=f"เพิ่มเพลงจาก `{name}` เข้าคิวแล้ว `{len(tracks)}` เพลง",
                 color=EmbedColor.MUSIC,
             )
             await interaction.followup.send(embed=embed)
@@ -1305,7 +1307,7 @@ class MusicCog(commands.Cog):
                 )
             
             embed.add_field(
-                name="🎧 เลือกฟังได้เลย",
+                name="รายการที่บันทึกไว้",
                 value="\n".join(desc_items),
                 inline=False,
             )
@@ -1334,8 +1336,8 @@ class MusicCog(commands.Cog):
                 embed = make_embed(
                     self.bot,
                     "Music • Playlist",
-                    title="🗑️ เอาเพลย์ลิสต์ออกแล้ว",
-                    description=f"ลบ `{name}` ออกจากชั้นวางให้เรียบร้อยแล้วนะ",
+                    title="✅ ลบเพลย์ลิสต์แล้ว",
+                    description=f"ลบ `{name}` ออกจากรายการเรียบร้อย",
                     color=EmbedColor.SUCCESS,
                 )
                 await interaction.followup.send(embed=embed)

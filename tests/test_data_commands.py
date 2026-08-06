@@ -92,8 +92,8 @@ class DataCommandTests(unittest.IsolatedAsyncioTestCase):
             await AdminCog.settings.callback(AdminCog(bot), interaction)
 
         embed = interaction.response.send_message.await_args.kwargs["embed"]
-        self.assertIn("`08:00`", embed.description)
-        self.assertIn("`Asia/Bangkok`", embed.description)
+        self.assertIn("`08:00`", embed.fields[1].value)
+        self.assertIn("`Asia/Bangkok`", embed.fields[1].value)
 
 
 if __name__ == "__main__":

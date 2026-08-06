@@ -14,7 +14,7 @@ from src.cogs.reminder import parse_duration
 from src.services.database import Database
 from src.services.market_data import normalize_symbol
 from src.services.typhoon import TyphoonService
-from src.ui import EmbedColor, make_embed, make_notice_embed
+from src.ui import EmbedColor, make_embed, make_notice_embed, truncate_text
 
 
 class DatabaseTests(unittest.TestCase):
@@ -189,6 +189,12 @@ class DatabaseTests(unittest.TestCase):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_embed_text_is_truncated_to_discord_limit(self):
+        self.assertEqual(truncate_text("abc", 3), "abc")
+        self.assertEqual(truncate_text("abcdef", 4), "abc…")
+        with self.assertRaises(ValueError):
+            truncate_text("abc", 1)
+
     def test_shared_embed_style_has_author_and_no_footer(self):
         bot = MagicMock()
         bot.user.display_avatar.url = "https://example.com/avatar.png"
@@ -216,7 +222,17 @@ class ValidationTests(unittest.TestCase):
 
         self.assertEqual(embed.author.name, "Javis • Music")
         self.assertEqual(embed.description, "เรียบร้อยแล้ว")
+        self.assertEqual(embed.title, "✅ ดำเนินการเรียบร้อย")
         self.assertEqual(embed.color.value, EmbedColor.SUCCESS)
+
+        error_embed = make_notice_embed(
+            bot,
+            "Music",
+            "😅 โหลดข้อมูลไม่สำเร็จ",
+            color=EmbedColor.ERROR,
+        )
+        self.assertEqual(error_embed.title, "❌ ดำเนินการไม่สำเร็จ")
+        self.assertEqual(error_embed.description, "โหลดข้อมูลไม่สำเร็จ")
 
     def test_typhoon_response_extraction(self):
         payload = {"choices": [{"message": {"content": "  สวัสดีครับ  "}}]}

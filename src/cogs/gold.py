@@ -74,16 +74,27 @@ class GoldCog(commands.Cog):
                     color = EmbedColor.MARKET_DOWN
 
             embed = discord.Embed(
-                title="🏆 ราคาทองคำตลาดโลก",
-                description=(
-                    f"💵 **ตอนนี้:** `${current_price:,.2f} / ออนซ์`\n"
-                    f"📊 **วันนี้ขยับ:** `{change_str}`\n\n"
-                    f"*📉 กราฟราคาย้อนหลัง 30 วัน*"
-                ),
+                title="🟡 ราคาทองคำตลาดโลก",
+                description="Gold Futures พร้อมกราฟย้อนหลัง 30 วัน",
                 color=color,
                 timestamp=datetime.utcnow()
             )
             set_embed_author(embed, self.bot, "Gold • อัปเดตล่าสุด")
+            embed.add_field(
+                name="💵 ราคาล่าสุด",
+                value=f"`${current_price:,.2f}`",
+                inline=True,
+            )
+            embed.add_field(
+                name="📊 เปลี่ยนแปลงวันนี้",
+                value=f"`{change_str}`",
+                inline=True,
+            )
+            embed.add_field(
+                name="⚖️ หน่วย",
+                value="`USD / oz`",
+                inline=True,
+            )
             embed.add_field(
                 name="📡 ข้อมูลจาก",
                 value="Yahoo Finance • `COMEX: GC=F`",
@@ -158,27 +169,27 @@ class GoldCog(commands.Cog):
 
             # 3. Determine Short-term Trend
             if current_price > ema20 and ema10 > ema20:
-                trend_status = "📈 **ขาขึ้นระยะสั้น (Bullish)**"
+                trend_status = "**ขาขึ้นระยะสั้น** · Bullish"
                 trend_desc = "ราคาอยู่เหนือเส้นค่าเฉลี่ย EMA 10 และ 20 ทิศทางมีแรงซื้อหนุนอย่างชัดเจน"
                 color = EmbedColor.MARKET_UP
             elif current_price < ema20 and ema10 < ema20:
-                trend_status = "📉 **ขาลงระยะสั้น (Bearish)**"
+                trend_status = "**ขาลงระยะสั้น** · Bearish"
                 trend_desc = "ราคาอยู่ใต้เส้นค่าเฉลี่ย EMA 10 และ 20 มีแรงเทขายกดดันตลาดอย่างต่อเนื่อง"
                 color = EmbedColor.MARKET_DOWN
             else:
-                trend_status = "↔️ **แกว่งตัวออกข้าง (Sideways)**"
+                trend_status = "**แกว่งตัวออกข้าง** · Sideways"
                 trend_desc = "ราคาเคลื่อนไหวสลับขึ้นลงใกล้เคียงเส้น EMA ตลาดยังเลือกทิศทางไม่ชัดเจน"
                 color = EmbedColor.GOLD
 
             # 4. Determine Momentum from RSI
             if rsi >= 70:
-                rsi_status = f"🔴 **Overbought ({rsi:.1f})**"
+                rsi_status = f"**ซื้อมากเกินไป** · RSI `{rsi:.1f}`"
                 rsi_desc = "มีการซื้อมากเกินไปชั่วคราว ระวังแรงเทขายทำกำไรระยะสั้นในโซนนี้"
             elif rsi <= 30:
-                rsi_status = f"🟢 **Oversold ({rsi:.1f})**"
+                rsi_status = f"**ขายมากเกินไป** · RSI `{rsi:.1f}`"
                 rsi_desc = "มีการขายมากเกินไปชั่วคราว เป็นจุดที่ราคาค่อนข้างถูกและน่าสนใจทยอยสะสม"
             else:
-                rsi_status = f"⚪ **Neutral ({rsi:.1f})**"
+                rsi_status = f"**เป็นกลาง** · RSI `{rsi:.1f}`"
                 rsi_desc = "โมเมนตัมตลาดอยู่ในเกณฑ์ปกติ ไม่มีกำลังซื้อหรือขายที่มากจนเกินไป"
 
             # 5. Volatility (High - Low of last complete day)
@@ -186,8 +197,8 @@ class GoldCog(commands.Cog):
 
             # Render Discord Embed
             embed = discord.Embed(
-                title="📊 มองแนวรับ–แนวต้านทองกัน",
-                description=f"อิงข้อมูลตลาดโลก `COMEX: GC=F`\n**ราคาตอนนี้** `${current_price:,.2f}`",
+                title="📊 วิเคราะห์ทองคำระยะสั้น",
+                description=f"`COMEX: GC=F` • ราคาล่าสุด `${current_price:,.2f}`",
                 color=color,
                 timestamp=datetime.utcnow()
             )
@@ -195,34 +206,31 @@ class GoldCog(commands.Cog):
 
             # Add fields
             embed.add_field(
-                name="🧭 แนวโน้มและทิศทางตลาด (Trend)", 
+                name="🧭 แนวโน้ม",
                 value=f"{trend_status}\n*{trend_desc}*", 
                 inline=False
             )
             
             embed.add_field(
-                name="⚡ พลังซื้อขายของตลาด (RSI-14)", 
+                name="⚡ โมเมนตัม (RSI-14)",
                 value=f"{rsi_status}\n*{rsi_desc}*", 
                 inline=False
             )
 
             # Support & Resistance levels
             levels_text = (
-                f"🔴 **แนวต้านที่ 2 (R2):** `${r2:,.2f}` *(แนวต้านสำคัญ/จุดขายทำกำไรใหญ่)*\n"
-                f"🔴 **แนวต้านที่ 1 (R1):** `${r1:,.2f}` *(แนวต้านย่อย/จุดขายทำกำไรแรก)*\n"
-                f"📍 **จุดสมดุลราคา (Pivot Point):** `${pp:,.2f}` *(แนวรับ-ต้านหลักประจำวัน)*\n"
-                f"🟢 **แนวรับที่ 1 (S1):** `${s1:,.2f}` *(แนวรับย่อย/จุดเริ่มพิจารณาเข้าซื้อ)*\n"
-                f"🟢 **แนวรับที่ 2 (S2):** `${s2:,.2f}` *(แนวรับสำคัญ/จุดทยอยสะสมหลัก)*"
+                f"`R2` `${r2:,.2f}`  •  `R1` `${r1:,.2f}`\n"
+                f"`Pivot` `${pp:,.2f}`\n"
+                f"`S1` `${s1:,.2f}`  •  `S2` `${s2:,.2f}`"
             )
-            embed.add_field(name="🎯 ระดับราคาสำคัญ (Pivot Levels)", value=levels_text, inline=False)
+            embed.add_field(name="🎯 แนวรับ–แนวต้าน", value=levels_text, inline=False)
 
             # Volatility info
             extra_info = (
-                f"• **Volatility (ระยะแกว่งเมื่อวาน):** `${day_range:,.2f}`\n"
-                f"• **EMA 10:** `${ema10:,.2f}`\n"
-                f"• **EMA 20:** `${ema20:,.2f}`"
+                f"ช่วงแกว่ง `${day_range:,.2f}`  •  "
+                f"EMA 10 `${ema10:,.2f}`  •  EMA 20 `${ema20:,.2f}`"
             )
-            embed.add_field(name="ℹ️ ข้อมูลเทคนิคอลเพิ่มเติม", value=extra_info, inline=False)
+            embed.add_field(name="📐 ตัวชี้วัด", value=extra_info, inline=False)
 
             await interaction.followup.send(embed=embed)
 

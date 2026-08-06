@@ -127,13 +127,19 @@ class AdminCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Settings",
-            title="⚙️ ตั้งค่าบอทในเซิร์ฟเวอร์นี้",
-            description=(
-                f"**Morning Digest** {'🟢 เปิดอยู่' if digest_enabled else '⚪ ปิดอยู่'}\n"
-                f"**เวลาส่ง** `{digest_hour:02d}:{digest_minute:02d}` • `{timezone_name}`\n\n"
-                "เลือกตั้งค่าต่อจากปุ่มด้านล่างได้เลย หน้านี้เห็นเฉพาะคุณนะ"
-            ),
+            title="⚙️ ตั้งค่า Server",
+            description="เลือกการตั้งค่าจากปุ่มด้านล่าง • หน้านี้เห็นเฉพาะคุณ",
             color=EmbedColor.PRIMARY,
+        )
+        embed.add_field(
+            name="☀️ Morning Digest",
+            value="🟢 เปิดอยู่" if digest_enabled else "⚪ ปิดอยู่",
+            inline=True,
+        )
+        embed.add_field(
+            name="⏰ เวลาส่ง",
+            value=f"`{digest_hour:02d}:{digest_minute:02d}`\n`{timezone_name}`",
+            inline=True,
         )
         await interaction.response.send_message(
             embed=embed, view=SettingsView(self.bot, interaction.user.id, interaction.guild.id), ephemeral=True,

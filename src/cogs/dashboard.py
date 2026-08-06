@@ -128,15 +128,15 @@ class DashboardCog(commands.Cog):
         metrics = await asyncio.to_thread(fetch_financial_metrics)
         finance_text = "\n".join(
             (
-                self.format_metric("ราคาทองคำโลก (GC=F)", "$", " / oz", metrics.get("Gold")),
-                self.format_metric("อัตราแลกเปลี่ยน (USD/THB)", "", " THB", metrics.get("USDTHB")),
-                self.format_metric("ดัชนี S&P 500 ETF (SPY)", "$", "", metrics.get("SPY")),
-                self.format_metric("ดัชนีตลาดหุ้นไทย (^SET)", "", "", metrics.get("SET")),
+                self.format_metric("Gold · GC=F", "$", " / oz", metrics.get("Gold")),
+                self.format_metric("USD/THB", "", " THB", metrics.get("USDTHB")),
+                self.format_metric("S&P 500 · SPY", "$", "", metrics.get("SPY")),
+                self.format_metric("SET Index · ^SET", "", "", metrics.get("SET")),
             )
         )
         headlines = await self.fetch_top_news()
         news_text = (
-            "\n\n".join(
+            "\n".join(
                 f"{index}. [{title[:85]}]({link})"
                 for index, (title, link) in enumerate(headlines, 1)
             )
@@ -144,13 +144,13 @@ class DashboardCog(commands.Cog):
         )
         now = datetime.now(timezone.utc)
         embed = discord.Embed(
-            title="📊 ภาพรวมวันนี้",
-            description=f"ข้อมูลชุดนี้อัปเดตเมื่อ <t:{int(now.timestamp())}:R>",
+            title="📊 Daily Dashboard",
+            description=f"ตลาดและข่าวสำคัญ • อัปเดต <t:{int(now.timestamp())}:R>",
             color=EmbedColor.PRIMARY,
             timestamp=now,
         )
-        embed.add_field(name="🏛️ ตลาดตอนนี้", value=finance_text, inline=False)
-        embed.add_field(name="📰 ข่าวที่น่าสนใจ", value=news_text, inline=False)
+        embed.add_field(name="📈 ภาพรวมตลาด", value=finance_text, inline=False)
+        embed.add_field(name="📰 ข่าวล่าสุด", value=news_text, inline=False)
         return set_embed_author(embed, self.bot, "Daily Dashboard")
 
     async def _update_saved_dashboard(

@@ -125,24 +125,28 @@ def build_help_embed(bot, category_key: str | None = None) -> discord.Embed:
         embed = make_embed(
             bot,
             "Help",
-            title="👋 ให้ผมช่วยอะไรดี?",
+            title="📚 คู่มือคำสั่ง Javis",
             description=(
-                "เลือกหมวดจากเมนูด้านล่างเพื่อดูคำสั่งทั้งหมด\n"
-                "เริ่มพิมพ์ `/` ในช่องแชทเพื่อดูตัวเลือกและรายละเอียดของแต่ละคำสั่ง"
+                "เลือกหมวดจากเมนูด้านล่างเพื่อดูวิธีใช้แบบย่อ\n"
+                "หรือพิมพ์ `/` เพื่อค้นหาคำสั่งจาก Discord ได้ทันที"
             ),
             color=EmbedColor.PRIMARY,
         )
-        for category in HELP_CATEGORIES:
+        columns = (HELP_CATEGORIES[::2], HELP_CATEGORIES[1::2])
+        for index, categories in enumerate(columns, start=1):
             embed.add_field(
-                name=f"{category.emoji} {category.label}",
-                value=category.summary,
-                inline=False,
+                name=f"หมวดคำสั่ง {index}",
+                value="\n\n".join(
+                    f"{category.emoji} **{category.label}**\n{category.summary}"
+                    for category in categories
+                ),
+                inline=True,
             )
         return embed
 
     category = CATEGORIES_BY_KEY[category_key]
     command_lines = "\n".join(
-        f"**`{command}`** — {description}"
+        f"• **`{command}`** — {description}"
         for command, description in category.commands
     )
     return make_embed(

@@ -26,15 +26,26 @@ class HealthCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Status",
-            title="🩺 ทุกระบบเป็นยังไงบ้าง",
-            description="ภาพรวมสถานะตอนนี้ ดูได้แบบเร็ว ๆ ตรงนี้เลย",
+            title="🩺 สถานะระบบ",
+            description="ข้อมูล runtime ล่าสุดของ Javis",
             color=EmbedColor.SUCCESS,
         )
-        embed.add_field(name="📡 Discord", value=f"`{self.bot.latency * 1000:.0f} ms`", inline=True)
-        embed.add_field(name="⏱️ ออนไลน์มาแล้ว", value=f"`{int(uptime.total_seconds() // 3600)} ชม.`", inline=True)
-        embed.add_field(name="🏠 เซิร์ฟเวอร์", value=f"`{len(self.bot.guilds)}`", inline=True)
-        embed.add_field(name="🗂️ งานที่จำไว้", value=f"Reminder `{counts['reminders']}` • Alert `{counts['alerts']}` • Digest `{counts['digests']}`", inline=False)
-        embed.add_field(name="🎵 เพลง", value=f"คิว `{queued}` • FFmpeg `{'พร้อม' if FFMPEG_EXECUTABLE else 'ยังไม่พร้อม'}`", inline=False)
+        embed.add_field(name="📡 Latency", value=f"`{self.bot.latency * 1000:.0f} ms`", inline=True)
+        embed.add_field(name="⏱️ Uptime", value=f"`{int(uptime.total_seconds() // 3600)} ชม.`", inline=True)
+        embed.add_field(name="🏠 Servers", value=f"`{len(self.bot.guilds)}`", inline=True)
+        embed.add_field(
+            name="🗂️ งานอัตโนมัติ",
+            value=(
+                f"Reminder `{counts['reminders']}`  •  "
+                f"Alert `{counts['alerts']}`  •  Digest `{counts['digests']}`"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="🎵 ระบบเพลง",
+            value=f"เพลงในคิว `{queued}`  •  FFmpeg `{'พร้อม' if FFMPEG_EXECUTABLE else 'ยังไม่พร้อม'}`",
+            inline=False,
+        )
         if interaction.permissions.manage_guild:
             js_ready = bool(YTDL_OPTIONS["js_runtimes"])
             embed.add_field(

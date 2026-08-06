@@ -86,7 +86,7 @@ class NewsCog(commands.Cog):
                     else:
                         news_lines.append(f"{idx}. {title}{short_date}")
 
-                description_text = "\n\n".join(news_lines)
+                description_text = "\n".join(news_lines)
 
                 # Build beautiful embed
                 embed = make_embed(
@@ -104,7 +104,7 @@ class NewsCog(commands.Cog):
             embed = make_embed(
                 self.bot,
                 "News",
-                title="😅 ข่าวยังมาไม่ถึง",
+                title="❌ โหลดข่าวไม่สำเร็จ",
                 description="แหล่งข่าวตอบช้าไปนิดนึง รอสักครู่แล้วลองใหม่อีกทีนะ",
                 color=EmbedColor.ERROR,
             )

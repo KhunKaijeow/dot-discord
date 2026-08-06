@@ -86,19 +86,19 @@ class DealsNotifierCog(commands.Cog):
         end_date = item.get("end_date", "จนกว่าสิทธิ์จะหมด")
         url = item.get("open_giveaway_url", "https://www.gamerpower.com")
         embed = discord.Embed(
-            title=f"🎁 แจกเกมฟรี! {title}",
+            title=f"🎁 {title}"[:256],
             url=url,
-            description=description,
+            description=description[:700],
             color=EmbedColor.PRIMARY,
             timestamp=datetime.now(timezone.utc),
         )
         embed.add_field(name="🎮 แพลตฟอร์ม", value=f"`{platforms}`", inline=True)
-        embed.add_field(name="💰 มูลค่าปกติ", value=f"~~{worth}~~ **ฟรี!**", inline=True)
+        embed.add_field(name="💰 ราคา", value=f"~~{worth}~~  **ฟรี**", inline=True)
         embed.add_field(name="📅 สิ้นสุด", value=f"`{end_date}`", inline=True)
         if instructions:
             embed.add_field(
                 name="📝 วิธีรับสิทธิ์",
-                value=instructions[:500],
+                value=instructions[:450],
                 inline=False,
             )
         image = item.get("image")

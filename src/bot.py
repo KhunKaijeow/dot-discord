@@ -113,9 +113,10 @@ async def ask(interaction: discord.Interaction, prompt: str) -> None:
     embed = make_embed(
         bot,
         "AI Chat",
+        title="✨ คำตอบจาก Javis",
         description=(
-            f"**💬 คุณถามว่า**\n> {display_prompt}\n\n"
-            f"**✨ คำตอบจากผม**\n{answer}"
+            f"**คำถาม**\n> {display_prompt}\n\n"
+            f"**คำตอบ**\n{answer}"
         ),
         color=EmbedColor.PRIMARY,
     )
@@ -129,8 +130,8 @@ async def reset_chat(interaction: discord.Interaction) -> None:
     embed = make_embed(
         bot,
         "AI Chat",
-        title="🧹 เริ่มบทสนทนาใหม่แล้ว",
-        description="เคลียร์เรื่องเก่าให้เรียบร้อย เริ่มคุยเรื่องใหม่กันได้เลย!",
+        title="✅ เริ่มบทสนทนาใหม่แล้ว",
+        description="ล้างประวัติของห้องนี้เรียบร้อย พร้อมคุยเรื่องใหม่ได้เลย",
         color=EmbedColor.SUCCESS,
     )
     await interaction.response.send_message(embed=embed)

@@ -61,14 +61,13 @@ class PriceAlertsCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Price Alert",
-            title="🔔 เดี๋ยวผมช่วยเฝ้าราคาให้",
-            description=(
-                f"**สินทรัพย์** `{normalized}`\n"
-                f"**แจ้งเมื่อ** ราคา{condition_text} `${target_price:,.4f}`\n"
-                f"**ตอนนี้** `${current:,.4f}`\n\nID สำหรับลบ: `{alert_id}`"
-            ),
+            title="✅ ตั้ง Price Alert แล้ว",
+            description=f"กำลังเฝ้าราคา `{normalized}` ให้คุณ",
             color=EmbedColor.SUCCESS,
         )
+        embed.add_field(name="🎯 เป้าหมาย", value=f"{condition_text} `${target_price:,.4f}`", inline=True)
+        embed.add_field(name="💵 ราคาปัจจุบัน", value=f"`${current:,.4f}`", inline=True)
+        embed.add_field(name="🆔 ID", value=f"`{alert_id}`", inline=True)
         await interaction.response.send_message(
             embed=embed,
             ephemeral=True,
@@ -86,7 +85,7 @@ class PriceAlertsCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Price Alert",
-            title="🔔 ราคาที่กำลังเฝ้าให้",
+            title="🔔 Price Alert ที่กำลังทำงาน",
             description=text,
             color=EmbedColor.INFO,
         )
@@ -128,12 +127,17 @@ class PriceAlertsCog(commands.Cog):
                 embed = make_embed(
                     self.bot,
                     "Price Alert",
-                    title="🚨 ราคาถึงเป้าที่ตั้งไว้แล้ว",
+                    title="🚨 Price Alert ทำงานแล้ว",
                     description=(
-                        f"`{row['symbol']}` ตอนนี้อยู่ที่ **`${price:,.4f}`**\n"
-                        f"เข้าเงื่อนไขราคา{condition_text} `${row['target_price']:,.4f}` แล้วนะ"
+                        f"**{row['symbol']}** แตะเงื่อนไขที่ตั้งไว้แล้ว"
                     ),
                     color=EmbedColor.WARNING,
+                )
+                embed.add_field(name="💵 ราคาปัจจุบัน", value=f"`${price:,.4f}`", inline=True)
+                embed.add_field(
+                    name="🎯 เงื่อนไข",
+                    value=f"{condition_text} `${row['target_price']:,.4f}`",
+                    inline=True,
                 )
                 await channel.send(
                     content=f"<@{row['user_id']}>",

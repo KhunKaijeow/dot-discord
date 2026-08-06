@@ -84,16 +84,26 @@ class CryptoCog(commands.Cog):
                     # Build simplified Discord Embed
                     embed = discord.Embed(
                         title=f"🪙 {symbol}/USDT",
-                        description=(
-                            f"💵 **ราคาล่าสุด:** `{format_price(last_price)}`\n"
-                            f"{change_emoji} **การเปลี่ยนแปลง 24 ชม.:** `{change_str}`\n"
-                            f"💸 **ปริมาณซื้อขาย 24 ชม.:** `{format_large_number(quote_volume)}`\n\n"
-                            f"*📉 กราฟราคาย้อนหลัง 30 วัน*"
-                        ),
+                        description="ข้อมูล 24 ชั่วโมงล่าสุดพร้อมกราฟย้อนหลัง 30 วัน",
                         color=color,
                         timestamp=datetime.utcnow()
                     )
                     set_embed_author(embed, self.bot, "Crypto • อัปเดตล่าสุด")
+                    embed.add_field(
+                        name="💵 ราคาล่าสุด",
+                        value=f"`{format_price(last_price)}`",
+                        inline=True,
+                    )
+                    embed.add_field(
+                        name=f"{change_emoji} เปลี่ยนแปลง 24 ชม.",
+                        value=f"`{change_str}`",
+                        inline=True,
+                    )
+                    embed.add_field(
+                        name="💹 ปริมาณซื้อขาย",
+                        value=f"`{format_large_number(quote_volume)}`",
+                        inline=True,
+                    )
                     embed.add_field(
                         name="📡 ข้อมูลจาก",
                         value="Binance API • คู่เทรด `USDT`",
@@ -142,7 +152,7 @@ class CryptoCog(commands.Cog):
                     embed = make_embed(
                         self.bot,
                         "Crypto",
-                        title="😅 ราคายังมาไม่ถึง",
+                        title="❌ โหลดราคาคริปโตไม่สำเร็จ",
                         description=f"Binance ตอบกลับด้วยรหัส `{response.status}` รอสักครู่แล้วลองใหม่อีกทีนะ",
                         color=EmbedColor.ERROR,
                     )
@@ -152,7 +162,7 @@ class CryptoCog(commands.Cog):
             embed = make_embed(
                 self.bot,
                 "Crypto",
-                title="😅 ราคายังมาไม่ถึง",
+                title="❌ โหลดราคาคริปโตไม่สำเร็จ",
                 description="แหล่งข้อมูลเงียบไปนิดนึง รอสักครู่แล้วลองให้ผมเช็กใหม่อีกทีนะ",
                 color=EmbedColor.ERROR,
             )

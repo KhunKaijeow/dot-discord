@@ -5,7 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..services.translation import TranslationService, TranslationServiceError
-from ..ui import EmbedColor, make_embed
+from ..ui import EmbedColor, make_embed, truncate_text
 
 
 class TranslatorCog(commands.Cog):
@@ -50,7 +50,7 @@ class TranslatorCog(commands.Cog):
             embed = make_embed(
                 self.bot,
                 "Translate",
-                title="😅 รอบนี้แปลไม่สำเร็จ",
+                title="❌ แปลข้อความไม่สำเร็จ",
                 description=(
                     "ตอนนี้บริการแปลภาษาเงียบไปนิดนึง "
                     "พักแป๊บแล้วลองส่งมาใหม่อีกทีนะ"
@@ -63,21 +63,18 @@ class TranslatorCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Translate",
-            title="🌐 แปลให้แล้วนะ",
-            description=(
-                f"`{detected_language.upper()}` "
-                f"➡️ `{to_language.upper()}`"
-            ),
+            title="🌐 ผลการแปล",
+            description=f"`{detected_language.upper()}` → `{to_language.upper()}`",
             color=EmbedColor.PRIMARY,
         )
         embed.add_field(
-            name="📥 ต้นฉบับ",
-            value=f"> {text}",
+            name="ต้นฉบับ",
+            value=f"> {truncate_text(text, 1_020)}",
             inline=False,
         )
         embed.add_field(
-            name="✨ คำแปล",
-            value=translated_text,
+            name="คำแปล",
+            value=truncate_text(translated_text, 1_024),
             inline=False,
         )
         await interaction.followup.send(embed=embed)

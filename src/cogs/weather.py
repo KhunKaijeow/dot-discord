@@ -133,17 +133,17 @@ class WeatherCog(commands.Cog):
                     # Build Discord Embed
                     embed = discord.Embed(
                         title=f"{weather_emoji} อากาศที่ {location_display}",
-                        description=f"ตอนนี้ **{weather_desc.strip()}** • รู้สึกเหมือน `{feels_like_c}°C`",
+                        description=f"สภาพอากาศตอนนี้: **{weather_desc.strip()}**",
                         color=embed_color
                     )
                     set_embed_author(embed, self.bot, "Weather")
 
-                    embed.add_field(name="🌡️ อุณหภูมิปัจจุบัน", value=f"`{temp_c}°C`\n*(รู้สึกเหมือน `{feels_like_c}°C`)*", inline=True)
-                    embed.add_field(name="💧 ความชื้นอากาศ", value=f"`{humidity}%`", inline=True)
-                    embed.add_field(name="💨 ความเร็วลม", value=f"`{wind_speed} km/h`\n*(ทิศทาง `{wind_dir}`)*", inline=True)
+                    embed.add_field(name="🌡️ อุณหภูมิ", value=f"`{temp_c}°C`\nรู้สึก `{feels_like_c}°C`", inline=True)
+                    embed.add_field(name="💧 ความชื้น", value=f"`{humidity}%`", inline=True)
+                    embed.add_field(name="💨 ลม", value=f"`{wind_speed} km/h`\nทิศ `{wind_dir}`", inline=True)
 
-                    embed.add_field(name="📈 อุณหภูมิวันนี้", value=f"สูงสุด `{max_temp}°C`\nต่ำสุด `{min_temp}°C`", inline=True)
-                    embed.add_field(name="☀️ ดัชนี UV", value=f"ระดับ `{uv_index}`", inline=True)
+                    embed.add_field(name="📊 วันนี้", value=f"สูง `{max_temp}°C`\nต่ำ `{min_temp}°C`", inline=True)
+                    embed.add_field(name="☀️ UV", value=f"ระดับ `{uv_index}`", inline=True)
                     embed.add_field(name="🌅 พระอาทิตย์", value=f"ขึ้น `{sunrise}`\nตก `{sunset}`", inline=True)
 
 
@@ -152,7 +152,7 @@ class WeatherCog(commands.Cog):
                     embed = make_embed(
                         self.bot,
                         "Weather",
-                        title="😅 ฟ้ายังไม่ส่งข่าวมา",
+                        title="❌ โหลดข้อมูลอากาศไม่สำเร็จ",
                         description=f"บริการอากาศตอบกลับด้วยรหัส `{response.status}` รอสักครู่แล้วลองใหม่อีกทีนะ",
                         color=EmbedColor.ERROR,
                     )
@@ -162,7 +162,7 @@ class WeatherCog(commands.Cog):
             embed = make_embed(
                 self.bot,
                 "Weather",
-                title="😅 ฟ้ายังไม่ส่งข่าวมา",
+                title="❌ โหลดข้อมูลอากาศไม่สำเร็จ",
                 description="บริการอากาศเงียบไปนิดนึง รอสักครู่แล้วให้ผมเช็กใหม่อีกทีนะ",
                 color=EmbedColor.ERROR,
             )

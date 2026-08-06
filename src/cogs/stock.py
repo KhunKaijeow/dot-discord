@@ -93,17 +93,27 @@ class StockCog(commands.Cog):
 
             # Build simplified Discord Embed
             embed = discord.Embed(
-                title=f"📈 {symbol} ({company_name})",
-                description=(
-                    f"💵 **ราคาล่าสุด:** `{currency_symbol}{current_price:,.2f}`\n"
-                    f"📊 **การเปลี่ยนแปลงวันนี้:** `{change_str}`\n"
-                    f"💼 **มูลค่าตลาด:** `{format_large_number(market_cap)}`\n\n"
-                    f"*📉 กราฟราคาย้อนหลัง 30 วัน*"
-                ),
+                title=f"📈 {symbol} • {company_name}",
+                description="ข้อมูลล่าสุดพร้อมกราฟย้อนหลัง 30 วัน",
                 color=color,
                 timestamp=datetime.utcnow()
             )
             set_embed_author(embed, self.bot, "Stocks • อัปเดตล่าสุด")
+            embed.add_field(
+                name="💵 ราคาล่าสุด",
+                value=f"`{currency_symbol}{current_price:,.2f}`",
+                inline=True,
+            )
+            embed.add_field(
+                name="📊 เปลี่ยนแปลงวันนี้",
+                value=f"`{change_str}`",
+                inline=True,
+            )
+            embed.add_field(
+                name="🏦 มูลค่าตลาด",
+                value=f"`{format_large_number(market_cap)}`",
+                inline=True,
+            )
             embed.add_field(
                 name="📡 ข้อมูลจาก",
                 value=f"Yahoo Finance • `{exchange}`",
@@ -132,7 +142,7 @@ class StockCog(commands.Cog):
             embed = make_embed(
                 self.bot,
                 "Stocks",
-                title="😅 ราคาหุ้นยังมาไม่ถึง",
+                title="❌ โหลดราคาหุ้นไม่สำเร็จ",
                 description="แหล่งข้อมูลเงียบไปนิดนึง รอสักครู่แล้วลองให้ผมเช็กใหม่อีกทีนะ",
                 color=EmbedColor.ERROR,
             )
@@ -173,8 +183,8 @@ class StockCog(commands.Cog):
         embed = make_embed(
             self.bot,
             "Stocks",
-            title="📊 หุ้นยอดนิยม",
-            description="เจอตัวที่สนใจแล้วใช้ `/stock` เดี๋ยวผมเช็กราคาให้เลย",
+            title="🔎 หุ้นยอดนิยม",
+            description="เลือกสัญลักษณ์แล้วใช้ `/stock <symbol>` เพื่อดูราคาและกราฟ",
             color=EmbedColor.INFO,
         )
         
@@ -207,9 +217,9 @@ class StockCog(commands.Cog):
             "• `ADVANC.BK` - แอดวานซ์ อินโฟร์ เซอร์วิส (สื่อสาร)"
         )
         
-        embed.add_field(name="🇺🇸 หุ้นยักษ์ใหญ่ระดับโลก (US Giants)", value=us_giants, inline=False)
-        embed.add_field(name="📈 กองทุนดัชนีสหรัฐฯ (Index ETFs)", value=etfs, inline=False)
-        embed.add_field(name="🇹🇭 หุ้นยักษ์ใหญ่ไทย (SET Giants)", value=thai_giants, inline=False)
+        embed.add_field(name="🇺🇸 หุ้นสหรัฐฯ", value=us_giants, inline=False)
+        embed.add_field(name="📊 กองทุนดัชนี", value=etfs, inline=False)
+        embed.add_field(name="🇹🇭 หุ้นไทย", value=thai_giants, inline=False)
         
         
         await interaction.response.send_message(embed=embed)

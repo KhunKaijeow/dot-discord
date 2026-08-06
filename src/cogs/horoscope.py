@@ -84,7 +84,7 @@ class HoroscopeCog(commands.Cog):
             embed = make_embed(
                 self.bot,
                 "Horoscope",
-                title="🔑 ตั้งค่า Prokerala อีกนิดนะ",
+                title="⚠️ ต้องตั้งค่า Prokerala",
                 description="ตอนนี้ยังเปิดคำทำนายไม่ได้ เพราะยังไม่ได้ใส่ Prokerala credentials นะ",
                 color=EmbedColor.WARNING,
             )
@@ -105,7 +105,7 @@ class HoroscopeCog(commands.Cog):
                 embed=make_embed(
                     self.bot,
                     "Horoscope",
-                    title="😅 ดวงวันนี้ยังเดินทางมาไม่ถึง",
+                    title="❌ โหลดคำทำนายไม่สำเร็จ",
                     description="Prokerala เงียบไปนิดนึง รอสักครู่แล้วลองเปิดคำทำนายใหม่อีกทีนะ",
                     color=EmbedColor.ERROR,
                 ),
@@ -139,14 +139,14 @@ class HoroscopeCog(commands.Cog):
         emoji, sign_name, date_range = ZODIAC_SIGNS[zodiac]
         day_name = THAI_WEEKDAYS[now.weekday()]
         embed = discord.Embed(
+            title=f"{emoji} ดวงรายวัน • {sign_name}",
             description=(
-                f"คำทำนายสำหรับ **{sign_name}** ({date_range})\n"
-                f"ประจำ**{day_name}ที่ {now.strftime('%d/%m/%Y')}**\n\n"
-                f"🔮 {reading['general']}"
+                f"{date_range} • {day_name}ที่ {now.strftime('%d/%m/%Y')}\n\n"
+                f"{reading['general']}"
             ),
             color=daily_color.embed_color if daily_color else 0x8E44AD,
         )
-        set_embed_author(embed, self.bot, f"Horoscope • {emoji} {sign_name}")
+        set_embed_author(embed, self.bot, "Horoscope")
         embed.add_field(
             name="💕 ความรัก",
             value=truncate_field(reading["love"]),
@@ -166,22 +166,17 @@ class HoroscopeCog(commands.Cog):
             embed.add_field(
                 name="🍀 สีประจำวัน",
                 value=f"**{daily_color.color_name_th}**",
-                inline=False,
+                inline=True,
             )
 
         sources = f"[Prokerala Astrology API]({PROKERALA_SOURCE_URL})"
         if daily_color:
             sources += f"\n{color_source_text()}"
         embed.add_field(
-            name="📖 แหล่งข้อมูล",
-            value=sources,
-            inline=False,
-        )
-        embed.add_field(
-            name="✨ ข้อความถึงคุณ",
+            name="ℹ️ เกี่ยวกับคำทำนาย",
             value=(
-                "คำทำนายนี้มีไว้เพิ่มสีสันและกำลังใจ "
-                "อ่านเอาสนุกและเก็บไว้เป็นกำลังใจของวันนี้ก็พอนะ"
+                f"อ้างอิงจาก {sources}\n"
+                "คำทำนายมีไว้เพื่อความบันเทิงและเป็นกำลังใจเท่านั้น"
             ),
             inline=False,
         )
@@ -203,7 +198,7 @@ class HoroscopeCog(commands.Cog):
                 embed=make_embed(
                     self.bot,
                     "Lucky Color",
-                    title="😅 สียังมาไม่ถึง",
+                    title="❌ โหลดสีประจำวันไม่สำเร็จ",
                     description="แหล่งข้อมูลเงียบไปนิดนึง รอสักครู่แล้วลองใหม่อีกทีนะ",
                     color=EmbedColor.ERROR,
                 ),
@@ -212,21 +207,21 @@ class HoroscopeCog(commands.Cog):
             return
 
         embed = discord.Embed(
+            title=f"🎨 สีประจำ{daily_color.day_name_th}",
             description=(
-                f"สีตามธรรมเนียมไทยประจำ**{daily_color.day_name_th}"
-                f"ที่ {now.strftime('%d/%m/%Y')}** คือ\n\n"
+                f"{now.strftime('%d/%m/%Y')}\n\n"
                 f"## {daily_color.color_name_th}"
             ),
             color=daily_color.embed_color,
         )
-        set_embed_author(embed, self.bot, "Lucky Color • วันนี้ใส่สีอะไรดี?")
+        set_embed_author(embed, self.bot, "Lucky Color")
         embed.add_field(
-            name="🌐 ชื่อสีจากต้นฉบับ",
+            name="🌐 ชื่อจากต้นฉบับ",
             value=daily_color.source_color_name,
             inline=False,
         )
         embed.add_field(
-            name="✨ หยิบมาใช้ได้ง่าย ๆ",
+            name="💡 ไอเดียการใช้สี",
             value=(
                 "ไม่มีเสื้อสีนี้ก็ไม่เป็นไร ลองใช้กับกระเป๋า "
                 "เครื่องประดับ หรือของชิ้นเล็ก ๆ แทนก็ได้นะ"
@@ -234,15 +229,10 @@ class HoroscopeCog(commands.Cog):
             inline=False,
         )
         embed.add_field(
-            name="📖 แหล่งข้อมูล",
-            value=color_source_text(),
-            inline=False,
-        )
-        embed.add_field(
-            name="🔮 หมายเหตุ",
+            name="ℹ️ หมายเหตุ",
             value=(
                 "สีประจำวันเป็นธรรมเนียมและความเชื่อส่วนบุคคล "
-                "หยิบมาเพิ่มสีสันและความมั่นใจให้วันนี้ก็พอ"
+                f"• {color_source_text()}"
             ),
             inline=False,
         )

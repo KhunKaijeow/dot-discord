@@ -31,7 +31,8 @@ class MorningDigestCog(commands.Cog):
         if dashboard is None:
             raise RuntimeError("Dashboard is unavailable")
         embed = await dashboard.build_dashboard_embed()
-        embed.title = "☀️ อรุณสวัสดิ์! มีอะไรน่าสนใจบ้าง"
+        embed.title = "☀️ Morning Digest"
+        embed.description = "สรุปข้อมูลสำคัญสำหรับเริ่มต้นวันใหม่"
         set_embed_author(embed, self.bot, "Morning Digest")
         timeout = aiohttp.ClientTimeout(total=12)
         try:
@@ -42,9 +43,14 @@ class MorningDigestCog(commands.Cog):
                 payload = await response.json(content_type=None) if response.status == 200 else {}
             current = payload.get("current_condition", [{}])[0]
             if current:
-                embed.add_field(
+                embed.insert_field_at(
+                    1,
                     name=f"🌤️ อากาศ • {city}",
-                    value=f"`{current.get('temp_C', 'N/A')}°C` • ความชื้น `{current.get('humidity', 'N/A')}%` • ลม `{current.get('windspeedKmph', 'N/A')} km/h`",
+                    value=(
+                        f"อุณหภูมิ `{current.get('temp_C', 'N/A')}°C`  •  "
+                        f"ความชื้น `{current.get('humidity', 'N/A')}%`  •  "
+                        f"ลม `{current.get('windspeedKmph', 'N/A')} km/h`"
+                    ),
                     inline=False,
                 )
         except (aiohttp.ClientError, TimeoutError, ValueError, IndexError):
@@ -106,19 +112,27 @@ class MorningDigestCog(commands.Cog):
             return
         row = await asyncio.to_thread(self.database.get_settings, interaction.guild.id)
         channel = self.bot.get_channel(row["digest_channel_id"]) if row["digest_channel_id"] else None
-        text = (
-            f"**สถานะ** {'🟢 เปิดอยู่' if row['digest_enabled'] else '⚪ ปิดอยู่'}\n"
-            f"**เวลาส่ง** `{row['digest_hour']:02d}:{row['digest_minute']:02d}` • `{row['timezone']}`\n"
-            f"**ห้อง** {channel.mention if channel else 'ยังไม่ได้เลือก'}\n"
-            f"**เมือง** `{row['digest_city']}`"
-        )
         embed = make_embed(
             self.bot,
             "Morning Digest",
-            title="☀️ ตารางส่งข่าวตอนเช้า",
-            description=text,
+            title="☀️ การตั้งค่า Morning Digest",
+            description=(
+                "🟢 เปิดใช้งานอยู่" if row["digest_enabled"]
+                else "⚪ ปิดใช้งานอยู่"
+            ),
             color=EmbedColor.INFO,
         )
+        embed.add_field(
+            name="⏰ เวลาส่ง",
+            value=f"`{row['digest_hour']:02d}:{row['digest_minute']:02d}`\n`{row['timezone']}`",
+            inline=True,
+        )
+        embed.add_field(
+            name="📍 ห้อง",
+            value=channel.mention if channel else "ยังไม่ได้เลือก",
+            inline=True,
+        )
+        embed.add_field(name="🌤️ เมือง", value=f"`{row['digest_city']}`", inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @tasks.loop(minutes=1)
