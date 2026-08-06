@@ -4,7 +4,7 @@ from discord import app_commands
 import yfinance as yf
 import asyncio
 from datetime import datetime
-from src.services.chart_generator import generate_price_chart
+from ..services.chart_generator import generate_price_chart
 
 def fetch_stock_data(symbol: str):
     """Sync function to fetch stock info and 1-month historical data from yfinance."""

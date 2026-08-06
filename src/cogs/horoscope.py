@@ -1,6 +1,7 @@
 """Daily horoscope and Thai weekday-color slash commands."""
 
 from datetime import datetime
+import logging
 from zoneinfo import ZoneInfo
 
 import discord
@@ -19,6 +20,7 @@ from ..services.daily_color import (
 from ..services.prokerala import ProkeralaService, ProkeralaServiceError
 
 
+logger = logging.getLogger("javis.horoscope")
 BANGKOK_TIMEZONE = ZoneInfo("Asia/Bangkok")
 DISCORD_FIELD_LIMIT = 1024
 PROKERALA_SOURCE_URL = "https://api.prokerala.com/"
@@ -100,8 +102,8 @@ class HoroscopeCog(commands.Cog):
                 zodiac,
                 now,
             )
-        except ProkeralaServiceError as error:
-            print(f"Horoscope request failed: {error}")
+        except ProkeralaServiceError:
+            logger.exception("Horoscope request failed")
             await interaction.followup.send(
                 embed=discord.Embed(
                     title="😅 เปิดคำทำนายให้ไม่ได้ในตอนนี้",
@@ -127,8 +129,8 @@ class HoroscopeCog(commands.Cog):
     async def _get_daily_color(self, weekday: int) -> DailyColor | None:
         try:
             return await self.daily_color_service.get_color(weekday)
-        except DailyColorServiceError as error:
-            print(f"Daily color request failed: {error}")
+        except DailyColorServiceError:
+            logger.exception("Daily color request failed")
             return None
 
     def _build_horoscope_embed(
@@ -202,8 +204,8 @@ class HoroscopeCog(commands.Cog):
 
         try:
             daily_color = await self.daily_color_service.get_color(now.weekday())
-        except DailyColorServiceError as error:
-            print(f"Daily color request failed: {error}")
+        except DailyColorServiceError:
+            logger.exception("Daily color request failed")
             await interaction.followup.send(
                 embed=discord.Embed(
                     title="😅 เช็กสีประจำวันให้ไม่ได้ในตอนนี้",

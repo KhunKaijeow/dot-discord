@@ -8,8 +8,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from .services.gemini import GeminiService
 from .services.database import Database
+from .services.typhoon import TyphoonService
 
 
 logger = logging.getLogger("discord.javis")
@@ -39,38 +39,40 @@ COG_EXTENSIONS = (
 )
 
 
-class GeminiBot(commands.Bot):
-    def __init__(self):
+class JavisBot(commands.Bot):
+    def __init__(self) -> None:
         intents = discord.Intents.default()
         super().__init__(
             command_prefix="!",
             intents=intents,
             allowed_mentions=discord.AllowedMentions.none(),
         )
-        self.gemini_service = GeminiService()
+        self.ai_service = TyphoonService()
         self.database = Database()
         self.started_at = datetime.now(timezone.utc)
 
-    async def setup_hook(self):
+    async def setup_hook(self) -> None:
         for extension in COG_EXTENSIONS:
             await self.load_extension(extension)
+        try:
+            synced = await self.tree.sync()
+            logger.info("Synced %d command(s)", len(synced))
+        except Exception:
+            logger.exception("Failed to sync application commands")
 
 
-bot = GeminiBot()
+bot = JavisBot()
+
 
 @bot.event
-async def on_ready():
-    try:
-        synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} command(s)")
-    except Exception as e:
-        print(f"Failed to sync commands: {e}")
-    print(f"Logged in as {bot.user.name} ({bot.user.id})")
+async def on_ready() -> None:
+    logger.info("Logged in as %s (%s)", bot.user.name, bot.user.id)
+
 
 @bot.tree.command(name="ask", description="ถามคำถามหรือคุยต่อเนื่องกับ Typhoon AI")
 @app_commands.describe(prompt="คำถามของคุณ")
 @app_commands.checks.cooldown(5, 60.0, key=lambda interaction: interaction.user.id)
-async def ask(interaction: discord.Interaction, prompt: str):
+async def ask(interaction: discord.Interaction, prompt: str) -> None:
     prompt = prompt.strip()
     if not 1 <= len(prompt) <= 4000:
         await interaction.response.send_message("คำถามต้องมีความยาว 1–4,000 ตัวอักษร", ephemeral=True)
@@ -78,41 +80,43 @@ async def ask(interaction: discord.Interaction, prompt: str):
     await interaction.response.defer(thinking=True)
     try:
         # Retrieve or create chat session for this specific channel
-        chat = bot.gemini_service.get_or_create_chat(interaction.channel_id)
+        chat = bot.ai_service.get_or_create_chat(interaction.channel_id)
         # Send message asynchronously using a threadpool to prevent blocking the gateway
         response = await asyncio.to_thread(chat.send_message, prompt)
         answer = response.text
-    except Exception as e:
-        print(f"Typhoon request failed: {e}")
+    except Exception:
+        logger.exception("Typhoon request failed")
         answer = "ขอโทษนะ ตอนนี้ผมคุยกับ Typhoon ไม่สำเร็จ ลองถามใหม่อีกครั้งในอีกสักครู่นะครับ 🙏"
 
     embed = discord.Embed(
-        color=0x1a73e8  # Premium Google Blue
+        color=0x1A73E8
     )
     avatar_url = bot.user.display_avatar.url if bot.user else None
     embed.set_author(name="Javis AI • มาคุยกันเถอะ", icon_url=avatar_url)
     embed.add_field(name="💬 คำถามของคุณ", value=f">>> {prompt}", inline=False)
-    
     # Truncate answer if too long
     if len(answer) > 2000:
         answer = answer[:1980] + "\n...(คำตอบยาวเกินไป ถูกจำกัดการแสดงผล)..."
-    
     embed.add_field(name="🤖 คำตอบของผม", value=answer, inline=False)
-    
+
     await interaction.followup.send(embed=embed)
 
+
 @bot.tree.command(name="reset-chat", description="ล้างประวัติการสนทนาของช่องนี้")
-async def reset_chat(interaction: discord.Interaction):
-    bot.gemini_service.reset_chat(interaction.channel_id)
+async def reset_chat(interaction: discord.Interaction) -> None:
+    bot.ai_service.reset_chat(interaction.channel_id)
     embed = discord.Embed(
         description="🧹 **ล้างประวัติแชทให้แล้วนะ!** เริ่มคุยเรื่องใหม่กันได้เลยครับ",
-        color=0x2ecc71  # Mint Green
+        color=0x2ECC71,
     )
     await interaction.response.send_message(embed=embed)
 
 
 @bot.tree.error
-async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+async def on_app_command_error(
+    interaction: discord.Interaction,
+    error: app_commands.AppCommandError,
+) -> None:
     if isinstance(error, app_commands.CommandOnCooldown):
         message = f"ใช้งานถี่เกินไป กรุณารอ `{error.retry_after:.1f}` วินาที"
     elif isinstance(error, app_commands.MissingPermissions):

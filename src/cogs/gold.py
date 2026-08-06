@@ -1,10 +1,17 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
-import yfinance as yf
 import asyncio
 from datetime import datetime
+import logging
+
+import discord
+from discord import app_commands
+from discord.ext import commands
 import pandas as pd
+import yfinance as yf
+
+from ..services.chart_generator import generate_price_chart
+
+
+logger = logging.getLogger("javis.gold")
 
 def fetch_gold_data():
     """Sync function to fetch gold ticker information and historical data (1 month)."""
@@ -34,8 +41,6 @@ def calculate_ema(series: pd.Series, period: int) -> float:
         return float(series.iloc[-1])
     ema = series.ewm(span=period, adjust=False).mean()
     return float(ema.iloc[-1])
-
-from src.services.chart_generator import generate_price_chart
 
 class GoldCog(commands.Cog):
     def __init__(self, bot):
@@ -96,8 +101,8 @@ class GoldCog(commands.Cog):
             else:
                 await interaction.followup.send(embed=embed)
 
-        except Exception as e:
-            print(f"Error fetching gold price: {e}")
+        except Exception:
+            logger.exception("Could not fetch gold price")
             await interaction.followup.send("😅 ขออภัย ไม่สามารถดึงราคาทองคำได้ในขณะนี้ ลองอีกครั้งในภายหลังครับ")
 
     @app_commands.command(name="gold-analysis", description="วิเคราะห์จุดซื้อขายทองทางเทคนิคอล (Pivot Points, RSI, EMA)")
@@ -202,8 +207,8 @@ class GoldCog(commands.Cog):
 
             await interaction.followup.send(embed=embed)
 
-        except Exception as e:
-            print(f"Error calculating technical gold analysis: {e}")
+        except Exception:
+            logger.exception("Could not calculate gold analysis")
             await interaction.followup.send("😅 เกิดข้อผิดพลาดในการคำนวณวิเคราะห์ราคาทองคำ ลองอีกครั้งภายหลังครับ")
 
 async def setup(bot):

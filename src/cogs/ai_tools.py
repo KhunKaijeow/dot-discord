@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict, deque
+import logging
 import time
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+
+logger = logging.getLogger("javis.ai_tools")
 
 
 class AIToolsCog(commands.Cog):
@@ -23,7 +27,7 @@ class AIToolsCog(commands.Cog):
         for command in self._commands:
             self.bot.tree.add_command(command)
 
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         for command in self._commands:
             self.bot.tree.remove_command(command.name, type=command.type)
 
@@ -37,7 +41,12 @@ class AIToolsCog(commands.Cog):
         usage.append(now)
         return False
 
-    async def _run(self, interaction: discord.Interaction, message: discord.Message, instruction: str):
+    async def _run(
+        self,
+        interaction: discord.Interaction,
+        message: discord.Message,
+        instruction: str,
+    ) -> None:
         if self._rate_limited(interaction.user.id):
             await interaction.response.send_message("ใช้งาน AI ได้สูงสุด 3 ครั้งต่อนาที กรุณารอสักครู่", ephemeral=True)
             return
@@ -54,9 +63,14 @@ class AIToolsCog(commands.Cog):
         )
         try:
             answer = await asyncio.wait_for(
-                asyncio.to_thread(self.bot.gemini_service.generate_response, prompt), timeout=45,
+                asyncio.to_thread(self.bot.ai_service.generate_response, prompt), timeout=45,
             )
-        except (TimeoutError, Exception):
+        except TimeoutError:
+            logger.warning("AI message tool timed out for user %s", interaction.user.id)
+            await interaction.followup.send("AI ไม่สามารถประมวลผลได้ในขณะนี้", ephemeral=True)
+            return
+        except Exception:
+            logger.exception("AI message tool failed")
             await interaction.followup.send("AI ไม่สามารถประมวลผลได้ในขณะนี้", ephemeral=True)
             return
         answer = (answer or "").strip()[:1900]

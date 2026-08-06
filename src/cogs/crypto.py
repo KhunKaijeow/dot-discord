@@ -20,7 +20,7 @@ def format_large_number(val):
         return "N/A"
 
 from datetime import datetime
-from src.services.chart_generator import generate_price_chart
+from ..services.chart_generator import generate_price_chart
 
 class CryptoCog(commands.Cog):
     def __init__(self, bot):

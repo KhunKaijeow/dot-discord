@@ -7,7 +7,7 @@ Javis Discord Bot โดยอ้างอิงจากโค้ดปัจ�
 
 ```text
 main.py
-  └── src.bot.GeminiBot
+  └── src.bot.JavisBot
         ├── src.config
         ├── src.cogs.*
         │     └── src.services.*
@@ -20,7 +20,7 @@ main.py
    `COG_EXTENSIONS`
 3. แต่ละ Cog ลงทะเบียน Slash Commands หรือ background task ของตัวเอง
 4. Cog เรียก service สำหรับ API ภายนอก, การแปลงข้อมูล และ persistence
-5. Discord sync application commands เมื่อ event `on_ready` ทำงาน
+5. Discord sync application commands หนึ่งครั้งใน `setup_hook` หลังโหลด extensions
 
 ระบบใช้ Discord Gateway โดยตรงและไม่มี HTTP server หรือ health-check endpoint
 
@@ -44,7 +44,7 @@ circular import
 
 | กลุ่ม | Cog/Service หลัก | รายละเอียด |
 | --- | --- | --- |
-| AI chat/tools | `bot.py`, `cogs/ai_tools.py`, `services/gemini.py` | Typhoon AI, ประวัติแชทแยกตาม channel และ Context Menu 3 รายการ |
+| AI chat/tools | `bot.py`, `cogs/ai_tools.py`, `services/typhoon.py` | Typhoon AI, ประวัติแชทแยกตาม channel และ Context Menu 3 รายการ |
 | Music | `cogs/music.py` | yt-dlp, FFmpeg/Opus, Spotify track/playlist resolution, queue และ Saved Playlists |
 | Market | `cogs/stock.py`, `crypto.py`, `gold.py`, `price_alerts.py` | Yahoo Finance, Binance, กราฟ 30 วัน และ Price Alerts |
 | Content | `news.py`, `lyrics.py`, `translator.py`, `draw.py` | Google News RSS, LRCLIB, Google Translate และ Together AI FLUX.1 |
@@ -52,8 +52,9 @@ circular import
 | Automation | `reminder.py`, `dashboard.py`, `morning_digest.py`, `x_notifier.py`, `deals_notifier.py` | งานตามเวลาและการแจ้งเตือนอัตโนมัติ |
 | Administration | `admin.py`, `health.py` | การตั้งค่าระดับ Server และข้อมูลสุขภาพของ bot |
 
-`services/gemini.py` คงชื่อเดิมไว้เพื่อ compatibility แต่ implementation ปัจจุบัน
-เรียก OpenTyphoon endpoint ด้วยโมเดล `typhoon-v2.5-30b-a3b-instruct`
+`services/typhoon.py` เป็น implementation หลักและเรียก OpenTyphoon endpoint ด้วย
+โมเดล `typhoon-v2.5-30b-a3b-instruct` ส่วน `services/gemini.py` เป็น compatibility
+shim สำหรับ import เดิมเท่านั้น
 
 ## Persistence และ runtime state
 
@@ -122,9 +123,8 @@ workers เริ่มเมื่อ Cog ถูกโหลดและรอ 
 หาก command เรียกเครือข่าย ให้กำหนด timeout, จัดการ response ที่ไม่สำเร็จ และส่ง
 ข้อความผิดพลาดแบบไม่เปิดเผย token, payload ภายใน หรือ stack trace ต่อผู้ใช้
 
-## หมายเหตุเรื่อง environment variables
+## Environment variables
 
-AI runtime ใช้ `TYPHOON_API_KEY` แต่ `main.py` ปัจจุบันยังตรวจ
-`GEMINI_API_KEY` จาก startup guard เดิมด้วย ดังนั้น environment ต้องกำหนดทั้งสองค่า
-จนกว่าจะเปลี่ยน validation ใน entry point ดูรายการทั้งหมดและแหล่งที่มาของคีย์ได้ที่
-[README](../README.md#ตั้งค่าตัวแปรแวดล้อม)
+`main.py` ตรวจ `DISCORD_TOKEN` และ `TYPHOON_API_KEY` ก่อนประกอบ bot ส่วน API keys
+ของฟีเจอร์เสริมจะถูกตรวจเมื่อเรียกใช้ฟีเจอร์นั้น ดูรายการทั้งหมดและแหล่งที่มาของคีย์
+ได้ที่ [README](../README.md#ตั้งค่าตัวแปรแวดล้อม)

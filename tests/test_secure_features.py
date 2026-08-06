@@ -12,6 +12,7 @@ from src.cogs.ai_tools import AIToolsCog
 from src.cogs.reminder import parse_duration
 from src.services.database import Database
 from src.services.market_data import normalize_symbol
+from src.services.typhoon import TyphoonService
 
 
 class DatabaseTests(unittest.TestCase):
@@ -79,6 +80,34 @@ class DatabaseTests(unittest.TestCase):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_typhoon_response_extraction(self):
+        payload = {"choices": [{"message": {"content": "  สวัสดีครับ  "}}]}
+        self.assertEqual(TyphoonService._extract_content(payload), "สวัสดีครับ")
+
+        with self.assertRaises(ValueError):
+            TyphoonService._extract_content({"choices": []})
+
+    def test_typhoon_chat_is_reused_and_reset(self):
+        service = TyphoonService(api_key="test-key")
+        first = service.get_or_create_chat(123)
+        self.assertIs(first, service.get_or_create_chat(123))
+
+        service.reset_chat(123)
+        self.assertIsNot(first, service.get_or_create_chat(123))
+
+    def test_typhoon_chat_keeps_one_system_message(self):
+        service = TyphoonService(api_key="test-key")
+        service.generate_from_messages = MagicMock(return_value="คำตอบ")
+        chat = service.get_or_create_chat(123)
+
+        response = chat.send_message("คำถาม")
+
+        self.assertEqual(response.text, "คำตอบ")
+        self.assertEqual(
+            [item["role"] for item in chat.messages],
+            ["system", "user", "assistant"],
+        )
+
     def test_admin_permission_uses_guild_member_permissions(self):
         member = MagicMock(spec=discord.Member)
         member.guild_permissions = discord.Permissions(manage_guild=True)

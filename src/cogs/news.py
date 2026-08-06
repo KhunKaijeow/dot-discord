@@ -1,11 +1,29 @@
 """News lookup and display slash commands without AI dependency."""
 
-import discord
-from discord.ext import commands
-from discord import app_commands
-import aiohttp
-import urllib.parse
+from email.utils import parsedate_to_datetime
+import logging
+from urllib.parse import quote
 import xml.etree.ElementTree as ET
+
+import aiohttp
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+
+logger = logging.getLogger("javis.news")
+REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20)
+
+
+def format_rss_date(value: str) -> str:
+    """Return a compact Discord-friendly date from an RSS timestamp."""
+    if not value:
+        return ""
+    try:
+        return parsedate_to_datetime(value).strftime(" (%d %b %H:%M)")
+    except (TypeError, ValueError, OverflowError):
+        return ""
+
 
 class NewsCog(commands.Cog):
     def __init__(self, bot):
@@ -19,7 +37,7 @@ class NewsCog(commands.Cog):
         # Build Google News RSS Feed URL (Thai localized)
         if keyword and keyword.strip() != "":
             keyword_clean = keyword.strip()
-            encoded_kw = urllib.parse.quote(keyword_clean)
+            encoded_kw = quote(keyword_clean)
             url = f"https://news.google.com/rss/search?q={encoded_kw}&hl=th&gl=TH&ceid=TH:th"
             title_display = f"🔎 สรุปข่าวเด่นล่าสุดเกี่ยวกับ: {keyword_clean}"
         else:
@@ -27,10 +45,10 @@ class NewsCog(commands.Cog):
             title_display = "📰 ข่าวเด่นประเด็นร้อนวันนี้"
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
                 async with session.get(url) as response:
                     if response.status != 200:
-                        raise Exception(f"RSS API returned status {response.status}")
+                        raise RuntimeError(f"Google News RSS returned HTTP {response.status}")
                     
                     xml_content = await response.text()
                     
@@ -58,19 +76,7 @@ class NewsCog(commands.Cog):
                         link = link_el.text if link_el is not None else ""
                         pub_date = pub_date_el.text if pub_date_el is not None else ""
 
-                        # Parse date to show a shorter relative time or friendly string
-                        # e.g., "Tue, 28 Jul 2026 13:07:15 GMT" -> "28 Jul 13:07"
-                        short_date = ""
-                        if pub_date:
-                            try:
-                                # Standard RSS format: %a, %d %b %Y %H:%M:%S %Z
-                                dt = urllib.parse.parse_qsl(pub_date) # Fallback or parse string manually
-                                parts = pub_date.split(" ")
-                                if len(parts) >= 5:
-                                    # Take day, month, time
-                                    short_date = f" ({parts[1]} {parts[2]} {parts[4][:5]})"
-                            except Exception:
-                                pass
+                        short_date = format_rss_date(pub_date)
 
                         if link:
                             news_lines.append(f"{idx}. [{title}]({link}){short_date}")
@@ -90,8 +96,8 @@ class NewsCog(commands.Cog):
 
                     await interaction.followup.send(embed=embed)
 
-        except Exception as e:
-            print(f"Error fetching news: {e}")
+        except Exception:
+            logger.exception("Could not fetch Google News RSS")
             embed = discord.Embed(
                 title="😅 ขออภัย ดึงข่าวไม่สำเร็จ",
                 description="ตอนนี้บอทไม่สามารถดึงข้อมูลข่าวสารได้ ลองใหม่อีกครั้งในอีกสักครู่นะครับ",

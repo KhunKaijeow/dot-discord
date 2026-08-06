@@ -118,7 +118,6 @@ Reminder, Price Alert, Morning Digest และ Saved Playlists บันทึ�
 - Deno 2.3+ หรือ Node.js 22+ สำหรับให้ yt-dlp เล่นเพลงจาก YouTube
 - Discord Bot Token
 - Typhoon API Key
-- Gemini API Key สำหรับผ่าน startup guard เดิมใน `main.py` (โค้ดปัจจุบันไม่ได้ส่งคีย์นี้ไปยัง Gemini)
 - Together AI API Key (จำเป็นสำหรับคำสั่งวาดภาพ)
 - Spotify Client ID และ Client Secret (ไม่บังคับ - จำเป็นเฉพาะโหลด Spotify Playlist)
 - Valorant API Key (ไม่บังคับ)
@@ -169,7 +168,6 @@ cp .env.example .env
 ```dotenv
 DISCORD_TOKEN=your_discord_bot_token
 TYPHOON_API_KEY=your_typhoon_api_key
-GEMINI_API_KEY=compatibility_value_for_startup
 TOGETHER_API_KEY=your_together_api_key
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
@@ -182,7 +180,6 @@ PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
 | --- | --- | --- |
 | `DISCORD_TOKEN` | ใช่ | [Discord Developer Portal](https://discord.com/developers/applications) |
 | `TYPHOON_API_KEY` | ใช่ | [OpenTyphoon](https://opentyphoon.ai/) |
-| `GEMINI_API_KEY` | ใช่ในโค้ดปัจจุบัน | Startup guard เดิมใน `main.py`; ยังไม่ได้ใช้เรียก Gemini API |
 | `TOGETHER_API_KEY` | สำหรับ /draw | [Together AI](https://together.ai/) |
 | `SPOTIFY_CLIENT_ID` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
 | `SPOTIFY_CLIENT_SECRET` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
@@ -191,10 +188,6 @@ PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
 | `PROKERALA_CLIENT_SECRET` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
 
 ไฟล์ `.env` ถูก ignore ไว้แล้ว ห้าม commit token หรือ API key ขึ้น repository
-
-> **หมายเหตุ:** ระบบ AI หลักใช้ `TYPHOON_API_KEY` แต่ `main.py` ยังตรวจ
-> `GEMINI_API_KEY` ตอนเริ่มโปรเซส จึงต้องกำหนดทั้งสองตัวจนกว่าจะปรับ startup guard
-> ในโค้ด
 
 คำสั่ง `/horoscope` ใช้ Advanced Daily Prediction แบบครบ 4 หมวด ซึ่งใช้
 1,000 Prokerala credits ต่อราศีต่อวัน บอทจะ cache ผลไว้จนเปลี่ยนวันเพื่อลด
@@ -245,7 +238,7 @@ allowlist สำหรับการตั้งค่าและสัญล�
 
 1. สร้างโปรเจกต์ใหม่ใน Railway และเลือก **Deploy from GitHub repo**
 2. เลือก repository นี้
-3. เพิ่ม `DISCORD_TOKEN`, `TYPHOON_API_KEY`, `GEMINI_API_KEY`, `TOGETHER_API_KEY`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `VALORANT_API_KEY`,
+3. เพิ่ม `DISCORD_TOKEN`, `TYPHOON_API_KEY`, `TOGETHER_API_KEY`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `VALORANT_API_KEY`,
    `PROKERALA_CLIENT_ID` และ `PROKERALA_CLIENT_SECRET` ในหน้า
    **Variables**
 4. กำหนด Start Command เป็น:
@@ -288,11 +281,12 @@ Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg
     │   └── ...
     └── services/            # Persistence และ client/logic สำหรับบริการภายนอก
         ├── database.py      # SQLite repository
+        ├── typhoon.py       # OpenTyphoon client และ conversation state
         ├── market_data.py   # ราคาหุ้น คริปโต และทองคำ
         ├── chart_generator.py # สร้างกราฟราคาแบบ PNG
         ├── translation.py   # Google Translate endpoint
         ├── prokerala.py     # Prokerala Astrology API
-        └── gemini.py        # เชื่อมต่อ Typhoon AI (คงชื่อเดิมเพื่อ compatibility)
+        └── gemini.py        # Compatibility imports สำหรับชื่อเดิม
 ```
 
 รายละเอียด dependency direction และวิธีเพิ่มคำสั่งใหม่อยู่ใน
