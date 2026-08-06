@@ -265,6 +265,37 @@ class DashboardCog(commands.Cog):
             logger.exception("Could not manually update dashboard for guild %s", interaction.guild.id)
             await interaction.followup.send("😅 บอร์ดสะดุดนิดหน่อย ลองอัปเดตใหม่อีกทีนะ")
 
+    @app_commands.command(name="dashboard-disable", description="ปิด Daily Dashboard ของ Server นี้")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_channels=True)
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def dashboard_disable(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            return
+        settings = await asyncio.to_thread(
+            self.database.get_automation_settings,
+            interaction.guild.id,
+        )
+        if (
+            settings["dashboard_channel_id"] is None
+            and settings["dashboard_message_id"] is None
+        ):
+            await interaction.response.send_message(
+                "Daily Dashboard ปิดอยู่แล้วนะ",
+                ephemeral=True,
+            )
+            return
+        await asyncio.to_thread(
+            self.database.update_automation_settings,
+            interaction.guild.id,
+            dashboard_channel_id=None,
+            dashboard_message_id=None,
+        )
+        await interaction.response.send_message(
+            "✅ ปิด Daily Dashboard ให้แล้ว ข้อความเดิมยังเก็บไว้ในห้องนะ",
+            ephemeral=True,
+        )
+
 
 async def setup(bot) -> None:
     await bot.add_cog(DashboardCog(bot))

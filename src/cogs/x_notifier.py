@@ -200,6 +200,33 @@ class XNotifierCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="x-disable", description="ปิดระบบตามข่าว sheapgamer ของ Server นี้")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_channels=True)
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def x_disable(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            return
+        settings = await asyncio.to_thread(
+            self.database.get_automation_settings,
+            interaction.guild.id,
+        )
+        if settings["x_channel_id"] is None:
+            await interaction.response.send_message(
+                "ระบบตามข่าว sheapgamer ปิดอยู่แล้วนะ",
+                ephemeral=True,
+            )
+            return
+        await asyncio.to_thread(
+            self.database.update_automation_settings,
+            interaction.guild.id,
+            x_channel_id=None,
+        )
+        await interaction.response.send_message(
+            "✅ ปิดระบบตามข่าว sheapgamer ให้แล้ว",
+            ephemeral=True,
+        )
+
     @app_commands.command(name="x-status", description="ดูสถานะระบบตามข่าว sheapgamer")
     async def x_status(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:

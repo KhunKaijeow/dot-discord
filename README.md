@@ -71,10 +71,15 @@
 | `/lucky-shirt` | ดูสีประจำวันตามธรรมเนียมไทยจาก Wikipedia |
 | `/x-setup` | ตั้งห้องรับแจ้งเตือนโพสต์ใหม่จาก sheapgamer |
 | `/x-status` | ดูสถานะระบบแจ้งเตือน sheapgamer |
+| `/x-disable` | ปิดระบบตามข่าว sheapgamer ของ Server |
 | `/deals-setup` | ตั้งห้องรับแจ้งเตือนเกมแจกฟรี |
 | `/deals-check` | แสดงดีลเกมแจกฟรีล่าสุดสูงสุด 3 รายการทันที |
+| `/deals-disable` | ปิดแจ้งเตือนเกมแจกฟรีของ Server |
 | `/dashboard-setup` | สร้าง Daily Dashboard ในห้องที่เลือก |
 | `/dashboard-update` | สั่งอัปเดตข้อมูลบน Dashboard ทันที |
+| `/dashboard-disable` | ปิด Daily Dashboard ของ Server โดยเก็บข้อความเดิมไว้ |
+| `/my-data` | ดูจำนวนข้อมูลส่วนตัวที่บอทบันทึกไว้ |
+| `/my-data-delete` | ลบ Reminder, Price Alert และ Saved Playlist ของผู้เรียก |
 | `/price-alert add` | เพิ่มเงื่อนไขแจ้งเตือนราคาหุ้น คริปโต หรือทอง |
 | `/price-alert list` | ดู Price Alert ของผู้ใช้ |
 | `/price-alert remove` | ลบ Price Alert ด้วย ID |
@@ -110,6 +115,10 @@
 Reminder, Price Alert, Morning Digest, Saved Playlists, Dashboard และการตั้งค่าระบบ
 แจ้งเตือนบันทึกใน `data/javis.db` แบบแยกตาม Server จึงไม่หายเมื่อบอทรีสตาร์ต
 ส่วนประวัติแชทและคิวเพลงปกติยังเก็บในหน่วยความจำ
+
+เมื่อเริ่มบอท ระบบจะอัปเกรด SQLite schema ตามลำดับเวอร์ชันให้อัตโนมัติและบันทึก
+ประวัติไว้ใน `schema_migrations` โดย migration ที่ล้มเหลวจะถูก rollback ทั้งเวอร์ชัน
+แนะนำให้สำรอง `data/javis.db` ก่อน deploy รุ่นที่มีการเปลี่ยน schema
 
 การเพิ่ม YouTube/Spotify Playlist และ Saved Playlist เข้าคิวเป็นแบบ atomic: หาก
 พื้นที่คิวไม่พอ ระบบจะไม่เพิ่มเพลงเพียงบางส่วนและจะแจ้งจำนวนช่องว่างที่เหลือ
@@ -220,7 +229,7 @@ python main.py
 เมื่อเชื่อมต่อสำเร็จจะเห็นข้อความลักษณะนี้:
 
 ```text
-Synced 50 command(s)
+Synced 55 command(s)
 Logged in as ...
 ```
 

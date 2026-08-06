@@ -49,7 +49,7 @@ circular import
 | Music | `cogs/music.py`, `services/music_queue.py` | yt-dlp, FFmpeg/Opus, Spotify resolution, bounded queue และ Saved Playlists |
 | Market | `cogs/stock.py`, `crypto.py`, `gold.py`, `price_alerts.py` | Yahoo Finance, Binance, กราฟ 30 วัน และ Price Alerts |
 | Content | `news.py`, `translator.py`, `draw.py` | Google News RSS, Google Translate และ Together AI FLUX.1 |
-| Utility | `weather.py`, `valorant.py`, `horoscope.py` | wttr.in, HenrikDev, Prokerala และ Wikimedia |
+| Utility | `weather.py`, `valorant.py`, `horoscope.py`, `privacy.py` | wttr.in, HenrikDev, Prokerala, Wikimedia และคำสั่งจัดการข้อมูลส่วนตัว |
 | Automation | `reminder.py`, `dashboard.py`, `morning_digest.py`, `x_notifier.py`, `deals_notifier.py` | งานตามเวลาและการแจ้งเตือนอัตโนมัติ |
 | Administration | `admin.py`, `health.py` | การตั้งค่าระดับ Server และข้อมูลสุขภาพของ bot |
 
@@ -68,6 +68,16 @@ shim สำหรับ import เดิมเท่านั้น
 parameterized queries, เปิด foreign keys และ WAL mode และป้องกันการเข้าถึงพร้อมกัน
 ด้วย `threading.RLock`
 
+Schema จัดการผ่าน migration registry ใน `src/services/database_migrations.py`
+เมื่อบอทเริ่มทำงาน ระบบจะอ่าน `schema_migrations` และรันเฉพาะเวอร์ชันที่ยังไม่เคย
+ใช้ตามลำดับ แต่ละเวอร์ชันอยู่ใน transaction แยกกันและจะ rollback ทั้งเวอร์ชันเมื่อ
+คำสั่งใดล้มเหลว ฐานข้อมูลที่มีเวอร์ชันใหม่กว่าโค้ดจะถูกปฏิเสธเพื่อป้องกัน downgrade
+ที่ไม่ตั้งใจ
+
+เมื่อต้องเปลี่ยน schema ให้เพิ่ม `Migration` หมายเลขถัดไปใน registry เท่านั้น ห้ามแก้
+ชื่อหรือ SQL ของ migration ที่ deploy ไปแล้ว และควรสำรอง `data/javis.db` ก่อน deploy
+schema change ที่มีการย้ายหรือแปลงข้อมูล
+
 ข้อมูลใน `data/javis.db` ได้แก่:
 
 - การตั้งค่า Morning Digest และห้อง Price Alert ต่อ Server
@@ -80,6 +90,11 @@ parameterized queries, เปิด foreign keys และ WAL mode และป
 การตั้งค่าระบบอัตโนมัติอยู่ในตาราง `automation_settings` ส่วน GUID/ID ที่ notifier
 เคยส่งอยู่ใน `notifier_seen_items` โดยใช้ `(guild_id, notifier, item_id)` เป็น
 primary key เพื่อป้องกันการส่งซ้ำภายในแต่ละ Server
+
+คำสั่ง `/dashboard-disable`, `/deals-disable` และ `/x-disable` ล้างเฉพาะ channel/message
+configuration ของ Server ที่เรียกใช้ ส่วน `/my-data-delete` ลบ Reminder, Price Alert,
+Saved Playlist และ Playlist Track ของผู้เรียกแบบ transaction เดียว ข้อมูลผู้ใช้อื่น
+และการตั้งค่าระดับ Server ไม่รวมอยู่ในการลบ
 
 Cog ควรเรียก synchronous repository methods ด้วย `asyncio.to_thread` เพื่อไม่ block
 Discord Gateway ห้ามประกอบ SQL จาก input ของผู้ใช้ และต้องเพิ่มชื่อ column ลง

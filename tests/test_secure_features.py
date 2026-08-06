@@ -125,6 +125,67 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(self.database.count_user_playlists(user_id), 0)
         self.assertFalse(self.database.delete_playlist(user_id, "my_list")) # delete again should be False
 
+    def test_delete_user_data_is_atomic_and_isolated(self):
+        due_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        for user_id in (10, 20):
+            self.database.create_reminder(
+                user_id,
+                1,
+                100,
+                f"reminder-{user_id}",
+                due_at,
+            )
+            self.database.create_alert(
+                user_id,
+                1,
+                100,
+                "crypto",
+                "BTC",
+                "above",
+                100.0,
+                False,
+            )
+            self.database.save_playlist(
+                user_id,
+                "private",
+                [(f"track-{user_id}", "https://youtube.com/watch?v=1", "YouTube")],
+            )
+        self.database.update_automation_settings(1, deals_channel_id=999)
+
+        removed = self.database.delete_user_data(10)
+
+        self.assertEqual(
+            removed,
+            {
+                "reminders": 1,
+                "alerts": 1,
+                "playlists": 1,
+                "playlist_tracks": 1,
+            },
+        )
+        self.assertEqual(
+            self.database.user_data_counts(10),
+            {
+                "reminders": 0,
+                "alerts": 0,
+                "playlists": 0,
+                "playlist_tracks": 0,
+            },
+        )
+        self.assertEqual(
+            self.database.user_data_counts(20),
+            {
+                "reminders": 1,
+                "alerts": 1,
+                "playlists": 1,
+                "playlist_tracks": 1,
+            },
+        )
+        self.assertEqual(
+            self.database.get_automation_settings(1)["deals_channel_id"],
+            999,
+        )
+
 
 
 class ValidationTests(unittest.TestCase):

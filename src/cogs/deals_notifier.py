@@ -201,6 +201,33 @@ class DealsNotifierCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="deals-disable", description="ปิดแจ้งเตือนเกมแจกฟรีของ Server นี้")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_channels=True)
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def deals_disable(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            return
+        settings = await asyncio.to_thread(
+            self.database.get_automation_settings,
+            interaction.guild.id,
+        )
+        if settings["deals_channel_id"] is None:
+            await interaction.response.send_message(
+                "ระบบแจ้งเตือนเกมฟรีปิดอยู่แล้วนะ",
+                ephemeral=True,
+            )
+            return
+        await asyncio.to_thread(
+            self.database.update_automation_settings,
+            interaction.guild.id,
+            deals_channel_id=None,
+        )
+        await interaction.response.send_message(
+            "✅ ปิดแจ้งเตือนเกมแจกฟรีให้แล้ว",
+            ephemeral=True,
+        )
+
     @app_commands.command(name="deals-check", description="แสดงดีลเกมแจกฟรีล่าสุดทันที")
     async def deals_check(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(thinking=True)

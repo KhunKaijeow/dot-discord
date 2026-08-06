@@ -10,6 +10,8 @@ import sqlite3
 import threading
 from typing import Any
 
+from .database_migrations import apply_migrations
+
 
 DATABASE_PATH = Path("data/javis.db")
 
@@ -35,80 +37,20 @@ class Database:
         return connection
 
     def _initialize(self) -> None:
-        schema = """
-        PRAGMA journal_mode = WAL;
-        CREATE TABLE IF NOT EXISTS guild_settings (
-            guild_id INTEGER PRIMARY KEY,
-            timezone TEXT NOT NULL DEFAULT 'Asia/Bangkok',
-            digest_enabled INTEGER NOT NULL DEFAULT 0 CHECK (digest_enabled IN (0, 1)),
-            digest_channel_id INTEGER,
-            digest_hour INTEGER NOT NULL DEFAULT 8 CHECK (digest_hour BETWEEN 0 AND 23),
-            digest_minute INTEGER NOT NULL DEFAULT 0 CHECK (digest_minute BETWEEN 0 AND 59),
-            digest_city TEXT NOT NULL DEFAULT 'Bangkok',
-            alert_channel_id INTEGER,
-            last_digest_date TEXT
-        );
-        CREATE TABLE IF NOT EXISTS reminders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            guild_id INTEGER NOT NULL,
-            channel_id INTEGER NOT NULL,
-            message TEXT NOT NULL CHECK (length(message) BETWEEN 1 AND 1000),
-            due_at TEXT NOT NULL,
-            repeat_seconds INTEGER CHECK (repeat_seconds IS NULL OR repeat_seconds BETWEEN 60 AND 31536000),
-            created_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS reminders_due_idx ON reminders(due_at);
-        CREATE TABLE IF NOT EXISTS price_alerts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            guild_id INTEGER NOT NULL,
-            channel_id INTEGER NOT NULL,
-            asset_type TEXT NOT NULL CHECK (asset_type IN ('stock', 'crypto', 'gold')),
-            symbol TEXT NOT NULL CHECK (length(symbol) BETWEEN 1 AND 20),
-            condition TEXT NOT NULL CHECK (condition IN ('above', 'below')),
-            target_price REAL NOT NULL CHECK (target_price > 0),
-            repeat_enabled INTEGER NOT NULL DEFAULT 0 CHECK (repeat_enabled IN (0, 1)),
-            last_triggered_at TEXT,
-            created_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS alerts_guild_idx ON price_alerts(guild_id);
-        CREATE TABLE IF NOT EXISTS playlists (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50),
-            created_at TEXT NOT NULL,
-            UNIQUE(user_id, name)
-        );
-        CREATE TABLE IF NOT EXISTS playlist_tracks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
-            title TEXT NOT NULL,
-            youtube_url TEXT NOT NULL,
-            requested_via TEXT NOT NULL,
-            position INTEGER NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS playlists_user_idx ON playlists(user_id);
-        CREATE TABLE IF NOT EXISTS automation_settings (
-            guild_id INTEGER PRIMARY KEY,
-            dashboard_channel_id INTEGER,
-            dashboard_message_id INTEGER,
-            deals_channel_id INTEGER,
-            x_channel_id INTEGER
-        );
-        CREATE TABLE IF NOT EXISTS notifier_seen_items (
-            guild_id INTEGER NOT NULL,
-            notifier TEXT NOT NULL CHECK (notifier IN ('deals', 'x')),
-            item_id TEXT NOT NULL,
-            seen_at TEXT NOT NULL,
-            PRIMARY KEY (guild_id, notifier, item_id)
-        );
-        CREATE INDEX IF NOT EXISTS notifier_seen_lookup_idx
-            ON notifier_seen_items(guild_id, notifier, seen_at);
-        """
         with self._lock, closing(self._connect()) as connection:
-            connection.executescript(schema)
-            connection.commit()
+            connection.execute("PRAGMA journal_mode = WAL")
+            apply_migrations(connection)
+
+    def migration_history(self) -> list[dict[str, Any]]:
+        return self._rows(
+            "SELECT version, name, applied_at FROM schema_migrations ORDER BY version"
+        )
+
+    def schema_version(self) -> int:
+        rows = self._rows(
+            "SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations"
+        )
+        return int(rows[0]["version"])
 
     def _rows(self, sql: str, values: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         with self._lock, closing(self._connect()) as connection:
@@ -297,6 +239,9 @@ class Database:
                 "reminders": connection.execute("SELECT COUNT(*) FROM reminders").fetchone()[0],
                 "alerts": connection.execute("SELECT COUNT(*) FROM price_alerts").fetchone()[0],
                 "digests": connection.execute("SELECT COUNT(*) FROM guild_settings WHERE digest_enabled = 1").fetchone()[0],
+                "schema_version": connection.execute(
+                    "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
+                ).fetchone()[0],
             }
 
     def save_playlist(self, user_id: int, name: str, tracks: list[tuple[str, str, str]]) -> None:
@@ -361,3 +306,56 @@ class Database:
         """Returns the number of playlists created by the user."""
         row = self._rows("SELECT COUNT(*) AS count FROM playlists WHERE user_id = ?", (user_id,))[0]
         return row["count"]
+
+    def user_data_counts(self, user_id: int) -> dict[str, int]:
+        """Count persistent records owned by one Discord user across all guilds."""
+        if user_id < 1:
+            raise ValueError("user_id must be positive")
+        with self._lock, closing(self._connect()) as connection:
+            return self._user_data_counts(connection, user_id)
+
+    @staticmethod
+    def _user_data_counts(
+        connection: sqlite3.Connection,
+        user_id: int,
+    ) -> dict[str, int]:
+        return {
+            "reminders": connection.execute(
+                "SELECT COUNT(*) FROM reminders WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()[0],
+            "alerts": connection.execute(
+                "SELECT COUNT(*) FROM price_alerts WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()[0],
+            "playlists": connection.execute(
+                "SELECT COUNT(*) FROM playlists WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()[0],
+            "playlist_tracks": connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM playlist_tracks AS track
+                JOIN playlists AS playlist ON playlist.id = track.playlist_id
+                WHERE playlist.user_id = ?
+                """,
+                (user_id,),
+            ).fetchone()[0],
+        }
+
+    def delete_user_data(self, user_id: int) -> dict[str, int]:
+        """Delete one user's persistent data atomically and return removed counts."""
+        if user_id < 1:
+            raise ValueError("user_id must be positive")
+        with self._lock, closing(self._connect()) as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                counts = self._user_data_counts(connection, user_id)
+                connection.execute("DELETE FROM reminders WHERE user_id = ?", (user_id,))
+                connection.execute("DELETE FROM price_alerts WHERE user_id = ?", (user_id,))
+                connection.execute("DELETE FROM playlists WHERE user_id = ?", (user_id,))
+                connection.commit()
+                return counts
+            except Exception:
+                connection.rollback()
+                raise

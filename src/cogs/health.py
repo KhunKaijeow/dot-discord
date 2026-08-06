@@ -39,7 +39,11 @@ class HealthCog(commands.Cog):
             js_ready = bool(YTDL_OPTIONS["js_runtimes"])
             embed.add_field(
                 name="🛠️ Runtime สำหรับแอดมิน",
-                value=f"Python `{platform.python_version()}` • JS `{'พร้อม' if js_ready else 'ยังไม่พร้อม'}` • Database `พร้อม`",
+                value=(
+                    f"Python `{platform.python_version()}` • "
+                    f"JS `{'พร้อม' if js_ready else 'ยังไม่พร้อม'}` • "
+                    f"Database `v{counts['schema_version']}`"
+                ),
                 inline=False,
             )
         await interaction.response.send_message(embed=embed, ephemeral=True)

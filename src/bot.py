@@ -36,6 +36,7 @@ COG_EXTENSIONS = (
     "src.cogs.morning_digest",
     "src.cogs.admin",
     "src.cogs.health",
+    "src.cogs.privacy",
     "src.cogs.ai_tools",
 )
 
