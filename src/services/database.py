@@ -89,13 +89,6 @@ class Database:
             position INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS playlists_user_idx ON playlists(user_id);
-        
-        CREATE TABLE IF NOT EXISTS welcome_settings (
-            guild_id INTEGER PRIMARY KEY,
-            channel_id INTEGER NOT NULL,
-            welcome_config TEXT,  -- JSON string containing welcome format configuration
-            leave_config TEXT     -- JSON string containing leave format configuration
-        );
         """
         with self._lock, closing(self._connect()) as connection:
             connection.executescript(schema)
@@ -260,55 +253,3 @@ class Database:
         """Returns the number of playlists created by the user."""
         row = self._rows("SELECT COUNT(*) AS count FROM playlists WHERE user_id = ?", (user_id,))[0]
         return row["count"]
-
-    def save_welcome_channel(self, guild_id: int, channel_id: int) -> None:
-        """Sets or updates the text channel ID where welcome/leave notifications are posted."""
-        sql = """
-        INSERT INTO welcome_settings (guild_id, channel_id)
-        VALUES (?, ?)
-        ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id
-        """
-        self._write(sql, (guild_id, channel_id))
-
-    def save_welcome_config(self, guild_id: int, config_type: str, config: dict[str, Any]) -> None:
-        """Saves a JSON configuration string for welcome or leave event type."""
-        import json
-        config_json = json.dumps(config)
-        
-        if config_type == "welcome":
-            sql = """
-            INSERT INTO welcome_settings (guild_id, channel_id, welcome_config)
-            VALUES (?, 0, ?)
-            ON CONFLICT(guild_id) DO UPDATE SET welcome_config = excluded.welcome_config
-            """
-        elif config_type == "leave":
-            sql = """
-            INSERT INTO welcome_settings (guild_id, channel_id, leave_config)
-            VALUES (?, 0, ?)
-            ON CONFLICT(guild_id) DO UPDATE SET leave_config = excluded.leave_config
-            """
-        else:
-            raise ValueError("Invalid config_type. Must be 'welcome' or 'leave'.")
-            
-        self._write(sql, (guild_id, config_json))
-
-    def get_welcome_settings(self, guild_id: int) -> dict[str, Any] | None:
-        """Returns the welcome/leave configuration for a guild."""
-        import json
-        rows = self._rows("SELECT * FROM welcome_settings WHERE guild_id = ?", (guild_id,))
-        if not rows:
-            return None
-            
-        row = rows[0]
-        result = {
-            "guild_id": row["guild_id"],
-            "channel_id": row["channel_id"],
-            "welcome_config": json.loads(row["welcome_config"]) if row["welcome_config"] else None,
-            "leave_config": json.loads(row["leave_config"]) if row["leave_config"] else None
-        }
-        return result
-
-    def delete_welcome_settings(self, guild_id: int) -> bool:
-        """Deletes the welcome settings configuration for the guild."""
-        deleted = self._write("DELETE FROM welcome_settings WHERE guild_id = ?", (guild_id,))
-        return deleted > 0

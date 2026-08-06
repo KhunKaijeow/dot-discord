@@ -76,34 +76,6 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(self.database.count_user_playlists(user_id), 0)
         self.assertFalse(self.database.delete_playlist(user_id, "my_list")) # delete again should be False
 
-    def test_welcome_settings_crud(self):
-        guild_id = 99
-        channel_id = 123
-        
-        # Test initial get returns None
-        self.assertIsNone(self.database.get_welcome_settings(guild_id))
-        
-        # Save channel
-        self.database.save_welcome_channel(guild_id, channel_id)
-        settings = self.database.get_welcome_settings(guild_id)
-        self.assertIsNotNone(settings)
-        self.assertEqual(settings["channel_id"], channel_id)
-        self.assertIsNone(settings["welcome_config"])
-        
-        # Save configs
-        w_config = {"type": "embed", "description": "Hello {member}!"}
-        l_config = {"type": "text", "text": "Goodbye!"}
-        self.database.save_welcome_config(guild_id, "welcome", w_config)
-        self.database.save_welcome_config(guild_id, "leave", l_config)
-        
-        settings = self.database.get_welcome_settings(guild_id)
-        self.assertEqual(settings["welcome_config"], w_config)
-        self.assertEqual(settings["leave_config"], l_config)
-        
-        # Delete welcome settings
-        self.assertTrue(self.database.delete_welcome_settings(guild_id))
-        self.assertIsNone(self.database.get_welcome_settings(guild_id))
-
 
 
 class ValidationTests(unittest.TestCase):
