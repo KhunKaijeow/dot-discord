@@ -22,7 +22,6 @@ COG_EXTENSIONS = (
     "src.cogs.stock",
     "src.cogs.weather",
     "src.cogs.crypto",
-    "src.cogs.lyrics",
     "src.cogs.draw",
     "src.cogs.news",
     "src.cogs.reminder",

@@ -3,12 +3,13 @@ from pathlib import Path
 import asyncio
 import tempfile
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 
 from src.cogs.admin import can_manage_guild
 from src.cogs.ai_tools import AIToolsCog
+from src.cogs.deals_notifier import DealsNotifierCog
 from src.cogs.reminder import parse_duration
 from src.services.database import Database
 from src.services.market_data import normalize_symbol
@@ -40,6 +41,52 @@ class DatabaseTests(unittest.TestCase):
     def test_settings_fields_are_allowlisted(self):
         with self.assertRaises(ValueError):
             self.database.update_settings(1, malicious_column="value")
+
+    def test_automation_settings_are_isolated_by_guild(self):
+        self.database.update_automation_settings(
+            10,
+            dashboard_channel_id=100,
+            dashboard_message_id=101,
+            deals_channel_id=102,
+            x_channel_id=103,
+        )
+        self.database.update_automation_settings(20, deals_channel_id=202)
+
+        guild_10 = self.database.get_automation_settings(10)
+        guild_20 = self.database.get_automation_settings(20)
+        self.assertEqual(guild_10["dashboard_channel_id"], 100)
+        self.assertEqual(guild_10["deals_channel_id"], 102)
+        self.assertIsNone(guild_20["dashboard_channel_id"])
+        self.assertEqual(guild_20["deals_channel_id"], 202)
+        self.assertEqual(
+            [row["guild_id"] for row in self.database.configured_automation_settings("deals_channel_id")],
+            [10, 20],
+        )
+
+    def test_notifier_seen_items_are_isolated_and_bounded(self):
+        self.database.remember_notifier_items(
+            10,
+            "deals",
+            ["1", "2", "3", "4", "5"],
+            keep_limit=3,
+        )
+        self.database.remember_notifier_items(20, "deals", ["1"])
+
+        self.assertEqual(
+            self.database.seen_notifier_items(10, "deals"),
+            {"3", "4", "5"},
+        )
+        self.assertEqual(self.database.seen_notifier_items(20, "deals"), {"1"})
+        self.assertEqual(self.database.notifier_seen_count(10, "deals"), 3)
+        self.assertEqual(self.database.seen_notifier_items(10, "x"), set())
+
+    def test_automation_repository_rejects_unknown_fields(self):
+        with self.assertRaises(ValueError):
+            self.database.update_automation_settings(1, unknown_channel_id=123)
+        with self.assertRaises(ValueError):
+            self.database.configured_automation_settings("unknown_channel_id")
+        with self.assertRaises(ValueError):
+            self.database.seen_notifier_items(1, "unknown")
 
     def test_playlist_crud_and_limits(self):
         user_id = 42
@@ -162,6 +209,43 @@ class ValidationTests(unittest.TestCase):
             with self.assertRaises(MusicError) as context:
                 asyncio.run(resolve_tracks("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGo3712j", user))
             self.assertIn("บอทไม่ได้ตั้งค่าตัวแปร `SPOTIFY_CLIENT_ID`", str(context.exception))
+
+
+class NotifierDeliveryTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.database = Database(Path(self.temp.name) / "test.db")
+        self.channels = {10: MagicMock(), 20: MagicMock()}
+        for channel in self.channels.values():
+            channel.send = AsyncMock()
+        self.bot = MagicMock()
+        self.bot.database = self.database
+        self.bot.get_channel.side_effect = self.channels.get
+        self.cog = DealsNotifierCog.__new__(DealsNotifierCog)
+        self.cog.bot = self.bot
+        self.cog.database = self.database
+        self.database.update_automation_settings(1, deals_channel_id=10)
+        self.database.update_automation_settings(2, deals_channel_id=20)
+
+    async def asyncTearDown(self):
+        self.temp.cleanup()
+
+    async def test_deals_are_seeded_and_delivered_once_per_guild(self):
+        settings = self.database.configured_automation_settings("deals_channel_id")
+        existing = [{"id": 1, "title": "Existing"}]
+        for row in settings:
+            await self.cog._deliver_to_guild(row, existing)
+
+        self.channels[10].send.assert_not_awaited()
+        self.channels[20].send.assert_not_awaited()
+
+        updated = [{"id": 2, "title": "New"}, *existing]
+        for row in settings:
+            await self.cog._deliver_to_guild(row, updated)
+            await self.cog._deliver_to_guild(row, updated)
+
+        self.channels[10].send.assert_awaited_once()
+        self.channels[20].send.assert_awaited_once()
 
 
 if __name__ == "__main__":

@@ -89,6 +89,22 @@ class Database:
             position INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS playlists_user_idx ON playlists(user_id);
+        CREATE TABLE IF NOT EXISTS automation_settings (
+            guild_id INTEGER PRIMARY KEY,
+            dashboard_channel_id INTEGER,
+            dashboard_message_id INTEGER,
+            deals_channel_id INTEGER,
+            x_channel_id INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS notifier_seen_items (
+            guild_id INTEGER NOT NULL,
+            notifier TEXT NOT NULL CHECK (notifier IN ('deals', 'x')),
+            item_id TEXT NOT NULL,
+            seen_at TEXT NOT NULL,
+            PRIMARY KEY (guild_id, notifier, item_id)
+        );
+        CREATE INDEX IF NOT EXISTS notifier_seen_lookup_idx
+            ON notifier_seen_items(guild_id, notifier, seen_at);
         """
         with self._lock, closing(self._connect()) as connection:
             connection.executescript(schema)
@@ -125,6 +141,98 @@ class Database:
     def all_digest_settings(self) -> list[dict[str, Any]]:
         return self._rows(
             "SELECT * FROM guild_settings WHERE digest_enabled = 1 AND digest_channel_id IS NOT NULL"
+        )
+
+    def get_automation_settings(self, guild_id: int) -> dict[str, Any]:
+        self._write(
+            "INSERT OR IGNORE INTO automation_settings(guild_id) VALUES (?)",
+            (guild_id,),
+        )
+        return self._rows(
+            "SELECT * FROM automation_settings WHERE guild_id = ?",
+            (guild_id,),
+        )[0]
+
+    def update_automation_settings(self, guild_id: int, **changes: Any) -> None:
+        allowed = {
+            "dashboard_channel_id",
+            "dashboard_message_id",
+            "deals_channel_id",
+            "x_channel_id",
+        }
+        if not changes or not set(changes).issubset(allowed):
+            raise ValueError("Unsupported automation settings field")
+        self.get_automation_settings(guild_id)
+        assignments = ", ".join(f"{key} = ?" for key in changes)
+        self._write(
+            f"UPDATE automation_settings SET {assignments} WHERE guild_id = ?",
+            (*changes.values(), guild_id),
+        )
+
+    def configured_automation_settings(self, channel_field: str) -> list[dict[str, Any]]:
+        allowed = {"dashboard_channel_id", "deals_channel_id", "x_channel_id"}
+        if channel_field not in allowed:
+            raise ValueError("Unsupported automation channel field")
+        return self._rows(
+            f"SELECT * FROM automation_settings WHERE {channel_field} IS NOT NULL"
+        )
+
+    @staticmethod
+    def _validate_notifier(notifier: str) -> None:
+        if notifier not in {"deals", "x"}:
+            raise ValueError("Unsupported notifier")
+
+    def seen_notifier_items(self, guild_id: int, notifier: str) -> set[str]:
+        self._validate_notifier(notifier)
+        return {
+            row["item_id"]
+            for row in self._rows(
+                "SELECT item_id FROM notifier_seen_items WHERE guild_id = ? AND notifier = ?",
+                (guild_id, notifier),
+            )
+        }
+
+    def remember_notifier_items(
+        self,
+        guild_id: int,
+        notifier: str,
+        item_ids: list[str],
+        *,
+        keep_limit: int = 200,
+    ) -> None:
+        self._validate_notifier(notifier)
+        clean_ids = list(dict.fromkeys(str(item_id) for item_id in item_ids if item_id))
+        if not clean_ids:
+            return
+        if keep_limit < 1:
+            raise ValueError("keep_limit must be positive")
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock, closing(self._connect()) as connection:
+            connection.executemany(
+                "INSERT OR IGNORE INTO notifier_seen_items(guild_id, notifier, item_id, seen_at) VALUES (?,?,?,?)",
+                [(guild_id, notifier, item_id, now) for item_id in clean_ids],
+            )
+            connection.execute(
+                """
+                DELETE FROM notifier_seen_items
+                WHERE rowid IN (
+                    SELECT rowid FROM notifier_seen_items
+                    WHERE guild_id = ? AND notifier = ?
+                    ORDER BY seen_at DESC, rowid DESC
+                    LIMIT -1 OFFSET ?
+                )
+                """,
+                (guild_id, notifier, keep_limit),
+            )
+            connection.commit()
+
+    def notifier_seen_count(self, guild_id: int, notifier: str) -> int:
+        self._validate_notifier(notifier)
+        return int(
+            self._rows(
+                "SELECT COUNT(*) AS count FROM notifier_seen_items WHERE guild_id = ? AND notifier = ?",
+                (guild_id, notifier),
+            )[0]["count"]
         )
 
     def create_reminder(self, user_id: int, guild_id: int, channel_id: int,

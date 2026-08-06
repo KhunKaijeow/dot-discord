@@ -46,9 +46,9 @@ circular import
 | กลุ่ม | Cog/Service หลัก | รายละเอียด |
 | --- | --- | --- |
 | AI chat/tools | `bot.py`, `cogs/ai_tools.py`, `services/typhoon.py` | Typhoon AI, ประวัติแชทแยกตาม channel และ Context Menu 3 รายการ |
-| Music | `cogs/music.py` | yt-dlp, FFmpeg/Opus, Spotify track/playlist resolution, queue และ Saved Playlists |
+| Music | `cogs/music.py`, `services/music_queue.py` | yt-dlp, FFmpeg/Opus, Spotify resolution, bounded queue และ Saved Playlists |
 | Market | `cogs/stock.py`, `crypto.py`, `gold.py`, `price_alerts.py` | Yahoo Finance, Binance, กราฟ 30 วัน และ Price Alerts |
-| Content | `news.py`, `lyrics.py`, `translator.py`, `draw.py` | Google News RSS, LRCLIB, Google Translate และ Together AI FLUX.1 |
+| Content | `news.py`, `translator.py`, `draw.py` | Google News RSS, Google Translate และ Together AI FLUX.1 |
 | Utility | `weather.py`, `valorant.py`, `horoscope.py` | wttr.in, HenrikDev, Prokerala และ Wikimedia |
 | Automation | `reminder.py`, `dashboard.py`, `morning_digest.py`, `x_notifier.py`, `deals_notifier.py` | งานตามเวลาและการแจ้งเตือนอัตโนมัติ |
 | Administration | `admin.py`, `health.py` | การตั้งค่าระดับ Server และข้อมูลสุขภาพของ bot |
@@ -66,9 +66,15 @@ parameterized queries, เปิด foreign keys และ WAL mode และป
 ข้อมูลใน `data/javis.db` ได้แก่:
 
 - การตั้งค่า Morning Digest และห้อง Price Alert ต่อ Server
+- ห้องและข้อความ Dashboard ต่อ Server
+- ห้องแจ้งเตือน sheapgamer/เกมฟรี และรายการที่เคยส่งแยกตาม Server
 - Reminder แบบครั้งเดียวและแบบทำซ้ำ
 - Price Alert ของผู้ใช้
 - Saved Playlists และลำดับเพลง (ลบ tracks อัตโนมัติด้วย `ON DELETE CASCADE`)
+
+การตั้งค่าระบบอัตโนมัติอยู่ในตาราง `automation_settings` ส่วน GUID/ID ที่ notifier
+เคยส่งอยู่ใน `notifier_seen_items` โดยใช้ `(guild_id, notifier, item_id)` เป็น
+primary key เพื่อป้องกันการส่งซ้ำภายในแต่ละ Server
 
 Cog ควรเรียก synchronous repository methods ด้วย `asyncio.to_thread` เพื่อไม่ block
 Discord Gateway ห้ามประกอบ SQL จาก input ของผู้ใช้ และต้องเพิ่มชื่อ column ลง
@@ -77,8 +83,14 @@ allowlist ใน `Database.update_settings` ก่อนรองรับกา
 ข้อมูลต่อไปนี้ไม่ได้อยู่ใน SQLite:
 
 - ประวัติแชท Typhoon และคิวเพลง เก็บในหน่วยความจำและหายเมื่อ restart
-- Dashboard เก็บ channel/message ID ใน `data/dashboard.json`
-- สถานะ notifier บางส่วนเก็บในไฟล์ JSON ใต้ `data/`
+
+คิวเพลงใช้ `MusicQueue` ซึ่งจำกัด 200 เพลงต่อ Server การเพิ่มหลายเพลงตรวจ capacity
+ก่อนและเพิ่มทั้งชุดแบบ atomic ส่วนคำสั่ง remove/shuffle/clear เรียกผ่าน queue API
+แทนการแทนที่ `deque` จาก Cog โดยตรง
+
+ไฟล์ `data/dashboard.json`, `data/deals_notifier.json` และ `data/x_notifier.json`
+เป็นรูปแบบเดิมเท่านั้น เมื่อเริ่มบอทระบบจะนำเข้าข้อมูลที่หา Server ต้นทางได้เข้าสู่
+SQLite โดยไม่เขียน state ใหม่กลับไปยัง JSON
 
 การ deploy ต้อง mount persistent volume ที่ `data/` หากต้องการเก็บข้อมูลข้าม
 redeploy และควรใช้เพียง 1 process/replica เพราะ runtime state บางส่วนไม่ได้แชร์กัน
@@ -90,9 +102,9 @@ redeploy และควรใช้เพียง 1 process/replica เพร�
 | Reminder delivery | ทุก 15 วินาที | SQLite |
 | Price Alerts | ทุก 5 นาที | SQLite, Yahoo Finance/Binance |
 | Morning Digest | ทุก 1 นาที | SQLite และ timezone ของแต่ละ Server |
-| sheapgamer notifier | ทุก 5 นาที | rss.app feed |
-| Game deals | ทุก 1 ชั่วโมง | GamerPower API |
-| Daily Dashboard | 08:00 น. `Asia/Bangkok` | Yahoo Finance และ Google News RSS |
+| sheapgamer notifier | ทุก 5 นาที | SQLite และ rss.app feed |
+| Game deals | ทุก 1 ชั่วโมง | SQLite และ GamerPower API |
+| Daily Dashboard | 08:00 น. `Asia/Bangkok` | SQLite, Yahoo Finance และ Google News RSS |
 
 workers เริ่มเมื่อ Cog ถูกโหลดและรอ `bot.wait_until_ready()` ก่อนทำงานกับ Discord
 

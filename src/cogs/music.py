@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections import deque
 from dataclasses import dataclass
 import logging
-import random
 import shlex
 import shutil
 from typing import Any
 from urllib.parse import urlparse, parse_qs
 
 from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+from ..services.music_queue import MusicQueue, QueueFullError
 from ..ui import EmbedColor, make_embed, set_embed_author
 
 import aiohttp
@@ -24,6 +23,7 @@ import yt_dlp
 
 logger = logging.getLogger(__name__)
 
+MAX_QUEUE_SIZE = 200
 FFMPEG_EXECUTABLE = shutil.which("ffmpeg")
 SPOTIFY_OEMBED_URL = "https://open.spotify.com/oembed"
 SPOTIFY_HOSTS = {"open.spotify.com", "spotify.link"}
@@ -387,7 +387,7 @@ class GuildMusicState:
     def __init__(self, bot: commands.Bot, guild_id: int):
         self.bot = bot
         self.guild_id = guild_id
-        self.queue: deque[Track] = deque()
+        self.queue = MusicQueue[Track](max_size=MAX_QUEUE_SIZE)
         self.current: Track | None = None
         self.voice_client: discord.VoiceClient | None = None
         self.text_channel: discord.abc.Messageable | None = None
@@ -403,11 +403,21 @@ class GuildMusicState:
         voice_client: discord.VoiceClient,
         text_channel: discord.abc.Messageable,
     ) -> int:
+        return await self.enqueue_many([track], voice_client, text_channel)
+
+    async def enqueue_many(
+        self,
+        tracks: list[Track],
+        voice_client: discord.VoiceClient,
+        text_channel: discord.abc.Messageable,
+    ) -> int:
+        if not tracks:
+            raise ValueError("tracks must not be empty")
+        self.ensure_capacity(len(tracks))
         self.voice_client = voice_client
         self.text_channel = text_channel
         self.stop_requested = False
-        self.queue.append(track)
-        position = len(self.queue)
+        position = self.queue.extend(tracks)
 
         if (
             self.current is None
@@ -417,6 +427,11 @@ class GuildMusicState:
             await self.play_next()
             return 0
         return position
+
+    def ensure_capacity(self, requested: int) -> None:
+        available = self.queue.available - (1 if self.current else 0)
+        if requested > available:
+            raise QueueFullError(MAX_QUEUE_SIZE, requested, max(0, available))
 
     async def play_next(self) -> None:
         async with self.advance_lock:
@@ -682,6 +697,16 @@ class MusicCog(commands.Cog):
             await interaction.followup.send(f"😅 {error}", ephemeral=True)
             return
 
+        state = get_state(self.bot, interaction.guild.id)
+        try:
+            state.ensure_capacity(len(tracks))
+        except QueueFullError as error:
+            await interaction.followup.send(
+                f"คิวรับเพิ่มได้อีก `{error.available}` เพลง แต่รายการนี้มี `{error.requested}` เพลงนะ",
+                ephemeral=True,
+            )
+            return
+
         voice_channel = interaction.user.voice.channel
         voice_client = interaction.guild.voice_client
         if voice_client and voice_client.channel != voice_channel and (
@@ -702,15 +727,19 @@ class MusicCog(commands.Cog):
             )
             return
 
-        state = get_state(self.bot, interaction.guild.id)
-        
-        # Enqueue first track (starts playback if empty)
-        first_position = await state.enqueue(tracks[0], voice_client, interaction.channel)
-        is_playing_now = (first_position == 0)
-        
-        # Enqueue remaining tracks
-        for track in tracks[1:]:
-            await state.enqueue(track, voice_client, interaction.channel)
+        try:
+            first_position = await state.enqueue_many(
+                tracks,
+                voice_client,
+                interaction.channel,
+            )
+        except QueueFullError as error:
+            await interaction.followup.send(
+                f"คิวรับเพิ่มได้อีก `{error.available}` เพลง แต่รายการนี้มี `{error.requested}` เพลงนะ",
+                ephemeral=True,
+            )
+            return
+        is_playing_now = first_position == 0
             
         if len(tracks) > 1:
             embed = make_embed(
@@ -888,13 +917,15 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
             return
         state = get_state(self.bot, interaction.guild.id)
-        items = list(state.queue)
-        random.SystemRandom().shuffle(items)
-        state.queue = deque(items)
-        await interaction.response.send_message(f"🔀 สุ่มคิว `{len(items)}` เพลงแล้ว")
+        state.queue.shuffle()
+        await interaction.response.send_message(f"🔀 สุ่มคิว `{len(state.queue)}` เพลงแล้ว")
 
     @app_commands.command(name="remove", description="นำเพลงออกจากคิวตามลำดับ")
-    async def remove(self, interaction: discord.Interaction, position: app_commands.Range[int, 1, 100]) -> None:
+    async def remove(
+        self,
+        interaction: discord.Interaction,
+        position: app_commands.Range[int, 1, MAX_QUEUE_SIZE],
+    ) -> None:
         if not interaction.guild:
             return
         if not user_can_control_voice(interaction):
@@ -904,9 +935,7 @@ class MusicCog(commands.Cog):
         if position > len(state.queue):
             await interaction.response.send_message("ไม่พบลำดับเพลงนี้", ephemeral=True)
             return
-        items = list(state.queue)
-        removed = items.pop(position - 1)
-        state.queue = deque(items)
+        removed = state.queue.remove(position)
         await interaction.response.send_message(f"🗑️ นำ **{removed.title}** ออกจากคิวแล้ว")
 
     @app_commands.command(name="clear-queue", description="ล้างเพลงที่รอทั้งหมดโดยไม่หยุดเพลงปัจจุบัน")
@@ -917,8 +946,7 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("ต้องอยู่ห้องเสียงเดียวกับบอท", ephemeral=True)
             return
         state = get_state(self.bot, interaction.guild.id)
-        count = len(state.queue)
-        state.queue.clear()
+        count = state.queue.clear()
         await interaction.response.send_message(f"🧹 ล้างคิว `{count}` เพลงแล้ว")
 
     @app_commands.command(
@@ -1024,6 +1052,15 @@ class MusicCog(commands.Cog):
                 await interaction.followup.send(f"หาเพลย์ลิสต์ `{name}` ไม่เจอ ลองเช็กชื่ออีกทีนะ")
                 return
 
+            state = get_state(self.bot, interaction.guild.id)
+            try:
+                state.ensure_capacity(len(db_tracks))
+            except QueueFullError as error:
+                await interaction.followup.send(
+                    f"คิวรับเพิ่มได้อีก `{error.available}` เพลง แต่เพลย์ลิสต์นี้มี `{error.requested}` เพลงนะ"
+                )
+                return
+
             voice_channel = interaction.user.voice.channel
             voice_client = interaction.guild.voice_client
             
@@ -1043,24 +1080,29 @@ class MusicCog(commands.Cog):
                 await interaction.followup.send("🎧 เข้าห้องเสียงไม่สำเร็จ ลองเช็กสิทธิ์ Connect/Speak ให้หน่อยนะ")
                 return
 
-            state = get_state(self.bot, interaction.guild.id)
-            
-            loaded_count = 0
+            tracks = []
             for row in db_tracks:
-                track = Track(
-                    title=row["title"],
-                    youtube_url=row["youtube_url"],
-                    requester=interaction.user,
-                    requested_via=row["requested_via"]
+                tracks.append(
+                    Track(
+                        title=row["title"],
+                        youtube_url=row["youtube_url"],
+                        requester=interaction.user,
+                        requested_via=row["requested_via"],
+                    )
                 )
-                await state.enqueue(track, voice_client, interaction.channel)
-                loaded_count += 1
+            try:
+                await state.enqueue_many(tracks, voice_client, interaction.channel)
+            except QueueFullError as error:
+                await interaction.followup.send(
+                    f"คิวรับเพิ่มได้อีก `{error.available}` เพลง แต่เพลย์ลิสต์นี้มี `{error.requested}` เพลงนะ"
+                )
+                return
 
             embed = make_embed(
                 self.bot,
                 "Music • Playlist",
                 title="🎶 โหลดเพลย์ลิสต์ให้แล้ว",
-                description=f"เพลงจาก `{name}` เข้าแถวรอครบ `{loaded_count}` เพลงแล้ว ไปฟังกันเลย!",
+                description=f"เพลงจาก `{name}` เข้าแถวรอครบ `{len(tracks)}` เพลงแล้ว ไปฟังกันเลย!",
                 color=EmbedColor.MUSIC,
             )
             await interaction.followup.send(embed=embed)
