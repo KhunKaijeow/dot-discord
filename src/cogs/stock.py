@@ -1,15 +1,17 @@
-"""Stock market slash commands."""
-
 import discord
 from discord.ext import commands
 from discord import app_commands
 import yfinance as yf
 import asyncio
+from datetime import datetime
+from src.services.chart_generator import generate_price_chart
 
-def fetch_stock_info(symbol: str):
-    """Sync function to fetch stock data from yfinance (runs in threadpool)."""
+def fetch_stock_data(symbol: str):
+    """Sync function to fetch stock info and 1-month historical data from yfinance."""
     ticker = yf.Ticker(symbol)
-    return ticker.info
+    info = ticker.info
+    hist = ticker.history(period="1mo")
+    return info, hist
 
 def format_large_number(val):
     """Format market cap or large numbers beautifully (e.g., Billions, Trillions)."""
@@ -41,10 +43,13 @@ class StockCog(commands.Cog):
 
         try:
             # Fetch data asynchronously using a threadpool to prevent blocking the event loop
-            info = await asyncio.to_thread(fetch_stock_info, symbol)
+            info, hist = await asyncio.to_thread(fetch_stock_data, symbol)
 
             # Check if stock data was successfully retrieved
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+            if current_price is None and not hist.empty:
+                current_price = hist['Close'].iloc[-1]
+
             if not info or current_price is None:
                 embed = discord.Embed(
                     title="🔎 ยังไม่เจอหุ้นตัวนี้",
@@ -61,9 +66,9 @@ class StockCog(commands.Cog):
             currency_symbol = "$" if currency == "USD" else (currency + " ")
             
             prev_close = info.get("regularMarketPreviousClose") or info.get("previousClose")
-            day_open = info.get("open") or info.get("regularMarketOpen")
-            day_high = info.get("dayHigh") or info.get("regularMarketDayHigh")
-            day_low = info.get("dayLow") or info.get("regularMarketDayLow")
+            if prev_close is None and len(hist) > 1:
+                prev_close = hist['Close'].iloc[-2]
+
             market_cap = info.get("marketCap")
             exchange = info.get("exchange", "Unknown")
 
@@ -83,28 +88,37 @@ class StockCog(commands.Cog):
                 elif change < 0:
                     color = 0xe74c3c  # Vibrant Red (Down)
 
-            # Build beautiful Discord Embed
+            # Build simplified Discord Embed
             embed = discord.Embed(
-                description=f"🏛️ **ตลาดหลักทรัพย์:** `{exchange}` | 💸 **สกุลเงิน:** `{currency}`",
-                color=color
+                title=f"📈 {symbol} ({company_name})",
+                description=(
+                    f"💵 **ราคาล่าสุด:** `{currency_symbol}{current_price:,.2f}`\n"
+                    f"📊 **การเปลี่ยนแปลงวันนี้:** `{change_str}`\n"
+                    f"💼 **มูลค่าตลาด:** `{format_large_number(market_cap)}`\n\n"
+                    f"*📉 กราฟราคาย้อนหลัง 30 วัน*"
+                ),
+                color=color,
+                timestamp=datetime.utcnow()
             )
-            avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-            embed.set_author(name=f"{symbol} ({company_name})", icon_url=avatar_url)
-            
-            # Format price showing sign changes
-            price_display = f"`{currency_symbol}{current_price:,.2f}`"
-            embed.add_field(name="💵 ราคาปัจจุบัน", value=price_display, inline=True)
-            embed.add_field(name="📊 การเปลี่ยนแปลงวันนี้", value=f"`{change_str}`", inline=True)
-            embed.add_field(name="🔙 ราคาปิดวันก่อนหน้า", value=f"`{currency_symbol}{prev_close:,.2f}`" if prev_close else "`N/A`", inline=True)
-            
-            embed.add_field(name="📈 ราคาสูงสุดวันนี้", value=f"`{currency_symbol}{day_high:,.2f}`" if day_high else "`N/A`", inline=True)
-            embed.add_field(name="📉 ราคาต่ำสุดวันนี้", value=f"`{currency_symbol}{day_low:,.2f}`" if day_low else "`N/A`", inline=True)
-            embed.add_field(name="⏱️ ราคาเปิดวันนี้", value=f"`{currency_symbol}{day_open:,.2f}`" if day_open else "`N/A`", inline=True)
+            embed.set_footer(text=f"ตลาด: {exchange} | แหล่งข้อมูล: Yahoo Finance")
 
-            embed.add_field(name="💼 มูลค่าตลาดทั้งหมด (Market Cap)", value=f"`{format_large_number(market_cap)}`", inline=False)
-            
+            chart_file = None
+            if not hist.empty and len(hist) > 1:
+                color_theme = "green" if change >= 0 else "red"
+                chart_buf = generate_price_chart(
+                    dates=hist.index,
+                    prices=hist['Close'],
+                    label=symbol,
+                    color_theme=color_theme,
+                    currency_symbol=currency_symbol
+                )
+                chart_file = discord.File(chart_buf, filename="stock_chart.png")
+                embed.set_image(url="attachment://stock_chart.png")
 
-            await interaction.followup.send(embed=embed)
+            if chart_file:
+                await interaction.followup.send(embed=embed, file=chart_file)
+            else:
+                await interaction.followup.send(embed=embed)
 
         except Exception as e:
             embed = discord.Embed(

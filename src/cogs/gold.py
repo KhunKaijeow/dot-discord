@@ -35,6 +35,8 @@ def calculate_ema(series: pd.Series, period: int) -> float:
     ema = series.ewm(span=period, adjust=False).mean()
     return float(ema.iloc[-1])
 
+from src.services.chart_generator import generate_price_chart
+
 class GoldCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -54,7 +56,7 @@ class GoldCog(commands.Cog):
                 prev_close = hist['Close'].iloc[-2]
 
             change_str = "0.00 (0.00%)"
-            color = 0x95a5a6
+            color = 0xf1c40f  # Default Gold/Yellow
             if current_price and prev_close:
                 change = current_price - prev_close
                 pct_change = (change / prev_close) * 100
@@ -67,22 +69,32 @@ class GoldCog(commands.Cog):
 
             embed = discord.Embed(
                 title="🏆 ราคาทองคำตลาดโลก (Gold Futures)",
-                description="สัญลักษณ์อ้างอิง: `GC=F` (ตลาด COMEX)",
+                description=(
+                    f"💵 **ราคาปัจจุบัน:** `${current_price:,.2f} / ออนซ์`\n"
+                    f"📊 **การเปลี่ยนแปลงวันนี้:** `{change_str}`\n\n"
+                    f"*📉 กราฟราคาย้อนหลัง 30 วัน*"
+                ),
                 color=color,
                 timestamp=datetime.utcnow()
             )
+            embed.set_footer(text="ตลาด COMEX (GC=F) | แหล่งข้อมูล: Yahoo Finance")
 
-            if current_price:
-                embed.add_field(name="💵 ราคาปัจจุบัน", value=f"`${current_price:,.2f} / ออนซ์`", inline=True)
-                embed.add_field(name="📊 การเปลี่ยนแปลงวันนี้", value=f"`{change_str}`", inline=True)
-                
-            if not hist.empty:
-                day_high = hist['High'].iloc[-1]
-                day_low = hist['Low'].iloc[-1]
-                embed.add_field(name="📈 สูงสุดวันนี้", value=f"`${day_high:,.2f}`", inline=True)
-                embed.add_field(name="📉 ต่ำสุดวันนี้", value=f"`${day_low:,.2f}`", inline=True)
+            chart_file = None
+            if not hist.empty and len(hist) > 1:
+                chart_buf = generate_price_chart(
+                    dates=hist.index,
+                    prices=hist['Close'],
+                    label="Gold Futures (GC=F)",
+                    color_theme="gold",
+                    currency_symbol="$"
+                )
+                chart_file = discord.File(chart_buf, filename="gold_chart.png")
+                embed.set_image(url="attachment://gold_chart.png")
 
-            await interaction.followup.send(embed=embed)
+            if chart_file:
+                await interaction.followup.send(embed=embed, file=chart_file)
+            else:
+                await interaction.followup.send(embed=embed)
 
         except Exception as e:
             print(f"Error fetching gold price: {e}")

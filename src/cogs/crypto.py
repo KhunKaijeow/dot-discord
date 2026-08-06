@@ -19,6 +19,9 @@ def format_large_number(val):
     except (ValueError, TypeError):
         return "N/A"
 
+from datetime import datetime
+from src.services.chart_generator import generate_price_chart
+
 class CryptoCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -31,15 +34,22 @@ class CryptoCog(commands.Cog):
         
         await interaction.response.defer(thinking=True)
 
-        # Binance ticker endpoint
-        url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}USDT"
+        # Binance ticker and historical klines (30 days) endpoints
+        ticker_url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}USDT"
+        klines_url = f"https://api.binance.com/api/v3/klines?symbol={symbol}USDT&interval=1d&limit=30"
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
+                async with session.get(ticker_url) as response:
                     if response.status == 200:
                         data = await response.json()
                         
+                        # Fetch historical klines for chart
+                        klines_data = []
+                        async with session.get(klines_url) as kline_resp:
+                            if kline_resp.status == 200:
+                                klines_data = await kline_resp.json()
+
                         # Extract metrics
                         last_price = float(data.get("lastPrice", 0))
                         price_change = float(data.get("priceChange", 0))
@@ -72,24 +82,48 @@ class CryptoCog(commands.Cog):
                                 return f"${p:,.6f}"
                             return "$0.00"
 
-                        # Build beautiful Discord Embed
+                        # Build simplified Discord Embed
                         embed = discord.Embed(
-                            description=f"🏛️ **กระดานเทรด:** `Binance` | 🪙 **คู่เหรียญ:** `{symbol}/USDT`",
-                            color=color
+                            title=f"🪙 {symbol}/USDT",
+                            description=(
+                                f"💵 **ราคาล่าสุด:** `{format_price(last_price)}`\n"
+                                f"{change_emoji} **การเปลี่ยนแปลง 24 ชม.:** `{change_str}`\n"
+                                f"💸 **ปริมาณซื้อขาย 24 ชม.:** `{format_large_number(quote_volume)}`\n\n"
+                                f"*📉 กราฟราคาย้อนหลัง 30 วัน*"
+                            ),
+                            color=color,
+                            timestamp=datetime.utcnow()
                         )
-                        avatar_url = self.bot.user.display_avatar.url if self.bot.user else None
-                        embed.set_author(name=f"{symbol}/USDT", icon_url=avatar_url)
-                        
-                        embed.add_field(name="💵 ราคาปัจจุบัน", value=f"`{format_price(last_price)}`", inline=True)
-                        embed.add_field(name=f"{change_emoji} การเปลี่ยนแปลง 24 ชม.", value=f"`{change_str}`", inline=True)
-                        embed.add_field(name="💸 ปริมาณซื้อขาย 24 ชม.", value=f"`{format_large_number(quote_volume)}`", inline=True)
-                        
-                        embed.add_field(name="📈 ราคาสูงสุด 24 ชม.", value=f"`{format_price(high_price)}`", inline=True)
-                        embed.add_field(name="📉 ราคาต่ำสุด 24 ชม.", value=f"`{format_price(low_price)}`", inline=True)
-                        embed.add_field(name="🔄 อัปเดตราคาแบบ", value="`เรียลไทม์`", inline=True)
-                        
+                        embed.set_footer(text="กระดานเทรด: Binance | แหล่งข้อมูล: Binance API")
 
-                        await interaction.followup.send(embed=embed)
+                        # Parse historical data for chart
+                        dates = []
+                        prices = []
+                        if klines_data:
+                            for k in klines_data:
+                                # k[0] is open time in milliseconds
+                                dt = datetime.fromtimestamp(k[0] / 1000)
+                                close_p = float(k[4])
+                                dates.append(dt)
+                                prices.append(close_p)
+
+                        chart_file = None
+                        if dates and prices and len(prices) > 1:
+                            color_theme = "green" if pct_change >= 0 else "red"
+                            chart_buf = generate_price_chart(
+                                dates=dates,
+                                prices=prices,
+                                label=f"{symbol}/USDT",
+                                color_theme=color_theme,
+                                currency_symbol="$"
+                            )
+                            chart_file = discord.File(chart_buf, filename="crypto_chart.png")
+                            embed.set_image(url="attachment://crypto_chart.png")
+
+                        if chart_file:
+                            await interaction.followup.send(embed=embed, file=chart_file)
+                        else:
+                            await interaction.followup.send(embed=embed)
                     elif response.status == 400:
                         embed = discord.Embed(
                             title="🔎 ยังไม่เจอเหรียญนี้",
