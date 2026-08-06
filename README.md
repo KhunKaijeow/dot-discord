@@ -1,17 +1,17 @@
 # Javis Discord Bot
 
-บอท Discord แบบอเนกประสงค์ที่ใช้ Slash Commands รองรับการสนทนาด้วย Gemini AI,
+บอท Discord แบบอเนกประสงค์ที่ใช้ Slash Commands รองรับการสนทนาด้วย Typhoon AI,
 เล่นเพลงใน Voice Channel, ดูข้อมูลหุ้น/คริปโต/ทองคำ/สภาพอากาศ, ติดตามข่าว
 และตั้งระบบแจ้งเตือนอัตโนมัติ
 โดยพัฒนาด้วย Python และ `discord.py`
 
 ## ฟีเจอร์
 
-- สนทนาต่อเนื่องกับ Gemini AI แยกตามช่อง
-- เล่นเพลงจากชื่อเพลง, YouTube และลิงก์ Spotify พร้อมระบบคิว
-- ตรวจสอบราคาหุ้น คริปโต และทองคำ พร้อมวิเคราะห์ทองคำทางเทคนิค
+- สนทนาต่อเนื่องกับ Typhoon AI แยกตามช่อง
+- เล่นเพลงจากชื่อเพลง, YouTube และลิงก์ Spotify (รองรับ YouTube/Spotify Playlist) พร้อมระบบคิวและระบบบันทึกเพลย์ลิสต์ส่วนตัว (Saved Playlists)
+- ตรวจสอบราคาหุ้น คริปโต และทองคำ พร้อมภาพกราฟเทรนด์ราคา 30 วันและวิเคราะห์ทองคำทางเทคนิค
 - ดูสภาพอากาศและสถานะเซิร์ฟเวอร์ Valorant
-- ค้นหาเนื้อเพลง ดึงหัวข้อข่าว แปลภาษา และสร้างภาพ
+- ค้นหาเนื้อเพลง ดึงหัวข้อข่าว แปลภาษา และสร้างภาพด้วย Together AI (FLUX.1)
 - ตั้งเวลาแจ้งเตือนแบบถาวร รองรับวันเวลาจริงและรอบแจ้งเตือนซ้ำ
 - ดูดวงรายวันครบ 12 ราศีจาก Prokerala พร้อมคำทำนายด้านความรัก งาน และสุขภาพ
 - ดึงสีประจำวันตามธรรมเนียมไทยจาก Wikipedia พร้อมแสดงแหล่งที่มา
@@ -27,8 +27,12 @@
 
 | คำสั่ง | รายละเอียด |
 | --- | --- |
-| `/ask` | สนทนาหรือถามคำถามกับ Gemini AI |
+| `/ask` | สนทนาหรือถามคำถามกับ Typhoon AI |
 | `/reset-chat` | ล้างประวัติการสนทนาของช่องปัจจุบัน |
+| `/playlist-save` | บันทึกเพลงในคิวปัจจุบันเป็นเพลย์ลิสต์ส่วนตัว |
+| `/playlist-load` | โหลดเพลงจากเพลย์ลิสต์ส่วนตัวเข้าสู่คิว |
+| `/playlist-list` | แสดงรายชื่อเพลย์ลิสต์ส่วนตัวทั้งหมดของคุณ |
+| `/playlist-delete` | ลบเพลย์ลิสต์ส่วนตัวของคุณ |
 | `/play` | เล่นเพลงจากชื่อ, YouTube หรือ Spotify |
 | `/pause` | หยุดเพลงชั่วคราว |
 | `/resume` | เล่นเพลงต่อ |
@@ -96,8 +100,8 @@
 ตามตารางข้างต้น หากต้องการข้อมูลล่าสุดก่อนถึงรอบถัดไปให้ใช้ `/dashboard-update`
 บอทต้องออนไลน์ในเวลาที่กำหนดจึงจะทำงานตามรอบได้
 
-Reminder, Price Alert และ Morning Digest บันทึกใน `data/javis.db` จึงไม่หายเมื่อ
-บอทรีสตาร์ต ส่วนประวัติ Gemini และคิวเพลงยังเก็บในหน่วยความจำ
+Reminder, Price Alert, Morning Digest และ Saved Playlists บันทึกใน `data/javis.db` จึงไม่หายเมื่อ
+บอทรีสตาร์ต ส่วนประวัติแชทและคิวเพลงปกติยังเก็บในหน่วยความจำ
 
 ## สิ่งที่ต้องมี
 
@@ -105,7 +109,9 @@ Reminder, Price Alert และ Morning Digest บันทึกใน `data/ja
 - FFmpeg และ Opus สำหรับระบบ Voice
 - Deno 2.3+ หรือ Node.js 22+ สำหรับให้ yt-dlp เล่นเพลงจาก YouTube
 - Discord Bot Token
-- Gemini API Key
+- Typhoon API Key
+- Together AI API Key (จำเป็นสำหรับคำสั่งวาดภาพ)
+- Spotify Client ID และ Client Secret (ไม่บังคับ - จำเป็นเฉพาะโหลด Spotify Playlist)
 - Valorant API Key (ไม่บังคับ)
 - Prokerala API Client ID และ Client Secret (จำเป็นสำหรับคำสั่งดูดวง)
 
@@ -153,7 +159,10 @@ cp .env.example .env
 
 ```dotenv
 DISCORD_TOKEN=your_discord_bot_token
-GEMINI_API_KEY=your_gemini_api_key
+TYPHOON_API_KEY=your_typhoon_api_key
+TOGETHER_API_KEY=your_together_api_key
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
 VALORANT_API_KEY=your_valorant_api_key
 PROKERALA_CLIENT_ID=your_prokerala_client_id
 PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
@@ -162,7 +171,10 @@ PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
 | ตัวแปร | จำเป็น | แหล่งที่มา |
 | --- | --- | --- |
 | `DISCORD_TOKEN` | ใช่ | [Discord Developer Portal](https://discord.com/developers/applications) |
-| `GEMINI_API_KEY` | ใช่ | [Google AI Studio](https://aistudio.google.com/) |
+| `TYPHOON_API_KEY` | ใช่ | [OpenTyphoon](https://opentyphoon.ai/) |
+| `TOGETHER_API_KEY` | สำหรับ /draw | [Together AI](https://together.ai/) |
+| `SPOTIFY_CLIENT_ID` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
+| `SPOTIFY_CLIENT_SECRET` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
 | `VALORANT_API_KEY` | ไม่ | [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) |
 | `PROKERALA_CLIENT_ID` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
 | `PROKERALA_CLIENT_SECRET` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
@@ -205,7 +217,7 @@ Logged in as ...
 
 1. สร้างโปรเจกต์ใหม่ใน Railway และเลือก **Deploy from GitHub repo**
 2. เลือก repository นี้
-3. เพิ่ม `DISCORD_TOKEN`, `GEMINI_API_KEY`, `VALORANT_API_KEY`,
+3. เพิ่ม `DISCORD_TOKEN`, `TYPHOON_API_KEY`, `TOGETHER_API_KEY`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `VALORANT_API_KEY`,
    `PROKERALA_CLIENT_ID` และ `PROKERALA_CLIENT_SECRET` ในหน้า
    **Variables**
 4. กำหนด Start Command เป็น:
@@ -224,8 +236,7 @@ Logged in as ...
 Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg, Opus และ Node.js
 สำหรับระบบเพลงให้อัตโนมัติ โดยไม่ต้องใช้ Docker
 
-ลิงก์ Spotify ที่รองรับในตอนนี้เป็นเพลงเดี่ยว (`/track/...`) บอทจะอ่านชื่อเพลง
-แล้วค้นหา audio ที่ตรงกันบน YouTube ก่อนนำมาเล่น จึงไม่ต้องใช้ Spotify API key
+ลิงก์ Spotify รองรับทั้งเพลงเดี่ยว (`/track/...`) และเพลย์ลิสต์ (`/playlist/...`) โดยเพลงเดี่ยวจะอ่านข้อมูลและค้นหาบน YouTube ได้ทันที ส่วนเพลย์ลิสต์จะใช้ Spotify API Credentials ในการดึงข้อมูลเพลงทั้งหมดเข้ามาในคิว
 
 ## โครงสร้างโปรเจกต์
 
@@ -246,7 +257,7 @@ Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg
     │   ├── weather.py
     │   └── ...
     └── services/            # Client/logic สำหรับบริการภายนอก
-        └── gemini.py
+        └── gemini.py        # ใช้เชื่อมต่อ Typhoon AI (โครงสร้างเดิม)
 ```
 
 รายละเอียด dependency direction และวิธีเพิ่มคำสั่งใหม่อยู่ใน
@@ -255,7 +266,7 @@ Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg
 ## แก้ไขปัญหาเบื้องต้น
 
 - `Missing required environment variables` — ตรวจค่า `DISCORD_TOKEN` และ
-  `GEMINI_API_KEY`
+  `TYPHOON_API_KEY`
 - `LoginFailure: Improper token` — สร้างหรือคัดลอก Discord Bot Token ใหม่
 - Slash Commands ไม่แสดง — ตรวจ scope `applications.commands` และรอให้ Discord sync
 - เล่นเพลงไม่ได้ — ตรวจว่า FFmpeg/Opus และ Deno 2.3+ หรือ Node.js 22+

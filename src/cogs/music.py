@@ -10,7 +10,8 @@ import random
 import shlex
 import shutil
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
+from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 
 import aiohttp
 import discord
@@ -151,8 +152,111 @@ async def _spotify_search_text(url: str) -> str:
     return f"{search_text} official audio"
 
 
-async def resolve_track(query: str, requester: discord.abc.User) -> Track:
-    """Resolve text, YouTube URL, or Spotify track URL to one YouTube video."""
+async def _resolve_youtube_playlist(url: str, requester: discord.abc.User) -> list[Track]:
+    options = dict(YTDL_OPTIONS)
+    options["extract_flat"] = "in_playlist"
+    
+    try:
+        data = await asyncio.to_thread(
+            lambda: yt_dlp.YoutubeDL(options).extract_info(url, download=False)
+        )
+    except Exception as e:
+        logger.exception("YouTube playlist extraction failed")
+        raise MusicError("ไม่สามารถดึงข้อมูลเพลงจาก YouTube Playlist ได้ครับ") from e
+
+    entries = data.get("entries") or []
+    tracks = []
+    for entry in entries:
+        if not entry:
+            continue
+        video_id = entry.get("id")
+        title = entry.get("title") or "Unknown Song"
+        if video_id:
+            youtube_url = YOUTUBE_WATCH_URL.format(video_id=video_id)
+            tracks.append(Track(
+                title=title,
+                youtube_url=youtube_url,
+                requester=requester,
+                requested_via="YouTube Playlist"
+            ))
+            
+    if not tracks:
+        raise MusicError("ไม่พบเพลงใน YouTube Playlist นี้ครับ")
+        
+    return tracks
+
+
+async def _resolve_spotify_playlist(playlist_id: str, requester: discord.abc.User) -> list[Track]:
+    if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
+        raise MusicError(
+            "บอทไม่ได้ตั้งค่าตัวแปร `SPOTIFY_CLIENT_ID` และ `SPOTIFY_CLIENT_SECRET` ในไฟล์ `.env` "
+            "ทำให้ไม่สามารถโหลดเพลงจาก Spotify Playlist ได้ครับ"
+        )
+        
+    token_url = "https://accounts.spotify.com/api/token"
+    auth_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    auth_data = {
+        "grant_type": "client_credentials",
+        "client_id": SPOTIFY_CLIENT_ID,
+        "client_secret": SPOTIFY_CLIENT_SECRET
+    }
+    
+    timeout = aiohttp.ClientTimeout(total=10)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            # 1. Exchange client credentials for an access token
+            async with session.post(token_url, data=auth_data, headers=auth_headers) as token_resp:
+                if token_resp.status != 200:
+                    raise MusicError("การขอสิทธิ์เข้าถึง Spotify API (Token) ล้มเหลว")
+                token_data = await token_resp.json()
+                access_token = token_data.get("access_token")
+                
+            # 2. Get playlist tracks (up to 100 tracks)
+            tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+            playlist_headers = {"Authorization": f"Bearer {access_token}"}
+            params = {
+                "fields": "items(track(name,artists(name)))",
+                "limit": 100
+            }
+            async with session.get(tracks_url, headers=playlist_headers, params=params) as tracks_resp:
+                if tracks_resp.status != 200:
+                    raise MusicError("ไม่สามารถดึงข้อมูลเพลงจาก Spotify Playlist ได้")
+                tracks_data = await tracks_resp.json()
+    except MusicError:
+        raise
+    except Exception as e:
+        logger.exception("Failed to connect to Spotify API")
+        raise MusicError("เกิดข้อผิดพลาดในการเชื่อมต่อเพื่อดึงข้อมูล Spotify Playlist") from e
+        
+    items = tracks_data.get("items") or []
+    tracks = []
+    
+    for item in items:
+        track_info = item.get("track")
+        if not track_info:
+            continue
+        track_name = track_info.get("name")
+        artists = track_info.get("artists") or []
+        artist_names = ", ".join(artist.get("name") for artist in artists if artist.get("name"))
+        
+        if track_name:
+            search_query = f"{track_name} {artist_names}".strip()
+            # Enqueue the query as a deferred search
+            tracks.append(Track(
+                title=f"{track_name} - {artist_names}" if artist_names else track_name,
+                youtube_url=f"ytsearch1:{search_query} official audio",
+                requester=requester,
+                requested_via="Spotify Playlist"
+            ))
+            
+    if not tracks:
+        raise MusicError("ไม่พบเพลงใน Spotify Playlist นี้ครับ")
+        
+    return tracks
+
+
+async def resolve_tracks(query: str, requester: discord.abc.User) -> list[Track]:
+    """Resolve text, YouTube URL (video/playlist), or Spotify URL (track/playlist) to a list of Tracks."""
     query = query.strip()
     if not query:
         raise MusicError("กรุณาใส่ชื่อเพลงหรือลิงก์")
@@ -161,17 +265,49 @@ async def resolve_track(query: str, requester: discord.abc.User) -> Track:
     host = parsed.hostname.lower().removeprefix("www.") if parsed.hostname else ""
     requested_via = "YouTube"
 
+    # 1. Spotify Hosts
     if host in SPOTIFY_HOSTS:
-        search_text = await _spotify_search_text(query)
-        youtube_query = f"ytsearch1:{search_text}"
-        requested_via = "Spotify → YouTube"
+        # Spotify link handling (redirects if spotify.link)
+        clean_url = query
+        if host == "spotify.link":
+            timeout = aiohttp.ClientTimeout(total=10)
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(query, allow_redirects=True) as response:
+                        response.raise_for_status()
+                        clean_url = str(response.url)
+            except Exception as e:
+                raise MusicError("ไม่สามารถถอดลิงก์ย่อ spotify.link ได้") from e
+                
+            parsed = urlparse(clean_url)
+            host = parsed.hostname.lower().removeprefix("www.") if parsed.hostname else ""
+
+        path_parts = [part for part in parsed.path.split("/") if part]
+        if len(path_parts) >= 2 and path_parts[-2] == "playlist":
+            playlist_id = path_parts[-1]
+            return await _resolve_spotify_playlist(playlist_id, requester)
+        elif len(path_parts) >= 2 and path_parts[-2] == "track":
+            search_text = await _spotify_search_text(clean_url)
+            youtube_query = f"ytsearch1:{search_text}"
+            requested_via = "Spotify → YouTube"
+        else:
+            raise MusicError("รองรับเฉพาะลิงก์เพลงเดี่ยวและเพลย์ลิสต์ของ Spotify เท่านั้น")
+
+    # 2. YouTube Hosts
     elif parsed.scheme in {"http", "https"}:
         if host not in YOUTUBE_HOSTS:
             raise MusicError("รองรับเฉพาะลิงก์ YouTube และ Spotify เท่านั้น")
+            
+        # Check if YouTube URL is a playlist (contains 'list=' parameter)
+        query_params = parse_qs(parsed.query)
+        if "list" in query_params:
+            return await _resolve_youtube_playlist(query, requester)
+            
         youtube_query = query
     else:
         youtube_query = f"ytsearch1:{query}"
 
+    # Single track resolution (as before)
     try:
         data = await asyncio.to_thread(
             _extract_youtube_info,
@@ -194,12 +330,12 @@ async def resolve_track(query: str, requester: discord.abc.User) -> Track:
     if not webpage_url:
         raise MusicError("YouTube ไม่ส่งลิงก์สำหรับเพลงนี้กลับมา")
 
-    return Track(
+    return [Track(
         title=data.get("title") or "Unknown Song",
         youtube_url=webpage_url,
         requester=requester,
         requested_via=requested_via,
-    )
+    )]
 
 
 class YouTubeAudioSource(discord.PCMVolumeTransformer):
@@ -540,7 +676,7 @@ class MusicCog(commands.Cog):
             return
 
         try:
-            track = await resolve_track(query, interaction.user)
+            tracks = await resolve_tracks(query, interaction.user)
         except MusicError as error:
             await interaction.followup.send(f"😅 {error}", ephemeral=True)
             return
@@ -566,20 +702,37 @@ class MusicCog(commands.Cog):
             return
 
         state = get_state(self.bot, interaction.guild.id)
-        position = await state.enqueue(track, voice_client, interaction.channel)
-        is_playing_now = (position == 0)
-        embed = discord.Embed(
-            description=f"🎵 **[{track.title}]({track.youtube_url})**",
-            color=0x2ecc71 if is_playing_now else 0x3498db,
-        )
-        embed.set_author(
-            name="กำลังเริ่มเล่นเพลง" if is_playing_now else "เพิ่มเพลงเข้าคิวแล้ว",
-            icon_url=self.bot.user.display_avatar.url if self.bot.user else None
-        )
-        embed.add_field(name="🔎 แหล่งคำขอ", value=f"`{track.requested_via}`", inline=True)
-        if not is_playing_now:
-            embed.add_field(name="📋 ลำดับคิว", value=f"`#{position}`", inline=True)
-        await interaction.followup.send(embed=embed)
+        
+        # Enqueue first track (starts playback if empty)
+        first_position = await state.enqueue(tracks[0], voice_client, interaction.channel)
+        is_playing_now = (first_position == 0)
+        
+        # Enqueue remaining tracks
+        for track in tracks[1:]:
+            await state.enqueue(track, voice_client, interaction.channel)
+            
+        if len(tracks) > 1:
+            embed = discord.Embed(
+                title="📥 โหลดเพลย์ลิสต์สำเร็จ",
+                description=f"โหลดเพลงจากเพลย์ลิสต์จำนวน `{len(tracks)}` เพลงเข้าสู่คิวเรียบร้อยแล้วครับ",
+                color=0x2ecc71 if is_playing_now else 0x3498db
+            )
+            embed.set_footer(text="ใช้ /queue เพื่อดูเพลงทั้งหมดในคิว")
+            await interaction.followup.send(embed=embed)
+        else:
+            track = tracks[0]
+            embed = discord.Embed(
+                description=f"🎵 **[{track.title}]({track.youtube_url})**",
+                color=0x2ecc71 if is_playing_now else 0x3498db,
+            )
+            embed.set_author(
+                name="กำลังเริ่มเล่นเพลง" if is_playing_now else "เพิ่มเพลงเข้าคิวแล้ว",
+                icon_url=self.bot.user.display_avatar.url if self.bot.user else None
+            )
+            embed.add_field(name="🔎 แหล่งคำขอ", value=f"`{track.requested_via}`", inline=True)
+            if not is_playing_now:
+                embed.add_field(name="📋 ลำดับคิว", value=f"`#{first_position}`", inline=True)
+            await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="skip", description="ข้ามเพลงปัจจุบัน")
     async def skip(self, interaction: discord.Interaction) -> None:

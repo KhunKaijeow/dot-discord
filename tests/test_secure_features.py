@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import asyncio
 import tempfile
 import unittest
 from unittest.mock import MagicMock
@@ -107,6 +108,16 @@ class ValidationTests(unittest.TestCase):
         self.assertFalse(cog._rate_limited(1))
         self.assertFalse(cog._rate_limited(1))
         self.assertTrue(cog._rate_limited(1))
+
+    def test_spotify_playlist_resolver_missing_credentials(self):
+        from src.cogs.music import resolve_tracks, MusicError
+        from unittest.mock import patch
+        
+        user = MagicMock(spec=discord.User)
+        with patch("src.cogs.music.SPOTIFY_CLIENT_ID", None), patch("src.cogs.music.SPOTIFY_CLIENT_SECRET", None):
+            with self.assertRaises(MusicError) as context:
+                asyncio.run(resolve_tracks("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGo3712j", user))
+            self.assertIn("บอทไม่ได้ตั้งค่าตัวแปร `SPOTIFY_CLIENT_ID`", str(context.exception))
 
 
 if __name__ == "__main__":
