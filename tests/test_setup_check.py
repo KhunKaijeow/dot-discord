@@ -37,7 +37,7 @@ class SetupCheckTests(unittest.IsolatedAsyncioTestCase):
         }
         bot.external_http.is_started = True
         bot.command_sync_succeeded = True
-        bot.command_sync_count = 59
+        bot.command_sync_count = 55
         return bot
 
     async def test_healthy_core_has_no_required_failures(self):
@@ -53,7 +53,7 @@ class SetupCheckTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("❌", embed.title)
         self.assertIn("ปัญหาหลัก `0` จุด", embed.description)
         self.assertIn("schema v", embed.fields[1].value)
-        self.assertIn("sync แล้ว 59 คำสั่ง", embed.fields[1].value)
+        self.assertIn("sync แล้ว 55 คำสั่ง", embed.fields[1].value)
         self.assertTrue(
             interaction.response.send_message.await_args.kwargs["ephemeral"]
         )

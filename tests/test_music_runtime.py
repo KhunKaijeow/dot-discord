@@ -5,10 +5,13 @@ import discord
 
 from src.cogs.music import (
     GuildMusicState,
+    MusicCog,
     Track,
     YOUTUBE_AUDIO_CLIENTS,
     YTDL_OPTIONS,
     _extract_youtube_info,
+    music_states,
+    text_permission_problem,
     voice_permission_problem,
 )
 
@@ -63,6 +66,66 @@ class MusicRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("Connect", problem)
         self.assertIn("Speak", problem)
+
+    def test_text_permissions_report_missing_capabilities(self):
+        interaction = MagicMock()
+        interaction.app_permissions = discord.Permissions(
+            view_channel=True,
+            send_messages=False,
+            embed_links=False,
+        )
+
+        problem = text_permission_problem(interaction)
+
+        self.assertIn("Send Messages", problem)
+        self.assertIn("Embed Links", problem)
+        self.assertNotIn("View Channel,", problem)
+
+    async def test_play_reports_voice_timeout_instead_of_generic_error(self):
+        bot = MagicMock()
+        bot.external_http = MagicMock()
+        interaction = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup.send = AsyncMock()
+        interaction.app_permissions = discord.Permissions(
+            view_channel=True,
+            send_messages=True,
+            embed_links=True,
+        )
+        interaction.guild.id = 9876
+        interaction.guild.voice_client = None
+        interaction.guild.me = MagicMock()
+        voice_channel = interaction.user.voice.channel
+        voice_channel.permissions_for.return_value = discord.Permissions(
+            view_channel=True,
+            connect=True,
+            speak=True,
+        )
+        voice_channel.connect = AsyncMock(side_effect=TimeoutError)
+        track = Track(
+            title="Song",
+            youtube_url="https://youtube.com/watch?v=1",
+            requester=interaction.user,
+            requested_via="YouTube",
+        )
+
+        try:
+            with (
+                patch("src.cogs.music.FFMPEG_EXECUTABLE", "/usr/bin/ffmpeg"),
+                patch("src.cogs.music.discord.opus.is_loaded", return_value=True),
+                patch("src.cogs.music.resolve_tracks", AsyncMock(return_value=[track])),
+            ):
+                await MusicCog.play.callback(MusicCog(bot), interaction, "Song")
+        finally:
+            music_states.pop(9876, None)
+
+        voice_channel.connect.assert_awaited_once_with(
+            timeout=20.0,
+            reconnect=True,
+            self_deaf=True,
+        )
+        sent_message = interaction.followup.send.await_args.args[0]
+        self.assertIn("20 วินาที", sent_message)
 
     async def test_playback_error_is_reported_and_not_looped_forever(self):
         bot = MagicMock()

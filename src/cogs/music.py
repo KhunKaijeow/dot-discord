@@ -493,7 +493,12 @@ class GuildMusicState:
             return False
 
         loading_message = await channel.send(
-            f"🔄 **กำลังเตรียมเพลง:** {track.title}"
+            embed=make_notice_embed(
+                self.bot,
+                "Music",
+                f"🔄 กำลังเตรียม **{track.title}**",
+                color=EmbedColor.INFO,
+            )
         )
         try:
             source = await YouTubeAudioSource.create(track.youtube_url, self.volume)
@@ -665,6 +670,23 @@ def voice_permission_problem(
     return f"บอทยังขาดสิทธิ์ในห้องเสียงนี้: {', '.join(missing)}"
 
 
+def text_permission_problem(
+    interaction: discord.Interaction,
+) -> str | None:
+    """Return missing permissions needed for music status messages."""
+    permissions = interaction.app_permissions
+    missing = []
+    if not permissions.view_channel:
+        missing.append("View Channel")
+    if not permissions.send_messages:
+        missing.append("Send Messages")
+    if not permissions.embed_links:
+        missing.append("Embed Links")
+    if not missing:
+        return None
+    return f"บอทยังขาดสิทธิ์ในห้องข้อความนี้: {', '.join(missing)}"
+
+
 class MusicControlView(discord.ui.View):
     def __init__(self, bot: commands.Bot, guild_id: int):
         super().__init__(timeout=900)
@@ -783,6 +805,10 @@ class MusicCog(commands.Cog):
     async def play(self, interaction: discord.Interaction, query: str) -> None:
         if not await defer_interaction(interaction):
             return
+        permission_problem = text_permission_problem(interaction)
+        if permission_problem:
+            await interaction.followup.send(permission_problem, ephemeral=True)
+            return
         if not FFMPEG_EXECUTABLE:
             await interaction.followup.send(
                 "🛠️ เครื่องที่รันบอทยังไม่มี FFmpeg",
@@ -835,13 +861,18 @@ class MusicCog(commands.Cog):
             return
         try:
             if voice_client is None:
-                voice_client = await voice_channel.connect()
+                voice_client = await voice_channel.connect(
+                    timeout=20.0,
+                    reconnect=True,
+                    self_deaf=True,
+                )
             elif voice_client.channel != voice_channel:
                 await voice_client.move_to(voice_channel)
-        except discord.DiscordException:
+        except (discord.DiscordException, TimeoutError):
             logger.exception("Could not connect to voice channel")
             await interaction.followup.send(
-                "🎧 เข้าห้องเสียงไม่สำเร็จ ลองเช็กสิทธิ์ Connect/Speak ให้หน่อยนะ",
+                "🎧 เข้าห้องเสียงไม่สำเร็จภายใน 20 วินาที "
+                "ลองเข้าห้องใหม่หรือเช็ก Connect/Speak นะ",
                 ephemeral=True,
             )
             return
@@ -855,6 +886,14 @@ class MusicCog(commands.Cog):
         except QueueFullError as error:
             await interaction.followup.send(
                 f"คิวรับเพิ่มได้อีก `{error.available}` เพลง แต่รายการนี้มี `{error.requested}` เพลงนะ",
+                ephemeral=True,
+            )
+            return
+        except (discord.Forbidden, discord.HTTPException):
+            logger.exception("Could not send music status in guild %s", interaction.guild.id)
+            await interaction.followup.send(
+                "💬 ส่งสถานะเพลงในห้องนี้ไม่ได้ "
+                "ลองเช็ก View Channel, Send Messages และ Embed Links นะ",
                 ephemeral=True,
             )
             return
@@ -1217,6 +1256,15 @@ class MusicCog(commands.Cog):
             )
             return
 
+        permission_problem = text_permission_problem(interaction)
+        if permission_problem:
+            await interaction.response.send_message(permission_problem, ephemeral=True)
+            return
+        permission_problem = voice_permission_problem(interaction)
+        if permission_problem:
+            await interaction.response.send_message(permission_problem, ephemeral=True)
+            return
+
         name = name.strip()
         await interaction.response.defer(thinking=True)
 
@@ -1265,15 +1313,20 @@ class MusicCog(commands.Cog):
 
             try:
                 if voice_client is None:
-                    voice_client = await voice_channel.connect()
+                    voice_client = await voice_channel.connect(
+                        timeout=20.0,
+                        reconnect=True,
+                        self_deaf=True,
+                    )
                 elif voice_client.channel != voice_channel:
                     await voice_client.move_to(voice_channel)
-            except discord.DiscordException:
+            except (discord.DiscordException, TimeoutError):
                 logger.exception("Could not connect to voice channel")
                 await interaction.followup.send(
                     embed=make_notice_embed(
                         self.bot, "Music • Playlist",
-                        "🎧 เข้าห้องเสียงไม่สำเร็จ ลองเช็กสิทธิ์ Connect/Speak ให้หน่อยนะ",
+                        "🎧 เข้าห้องเสียงไม่สำเร็จภายใน 20 วินาที "
+                        "ลองเข้าห้องใหม่หรือเช็ก Connect/Speak นะ",
                         color=EmbedColor.ERROR,
                     )
                 )

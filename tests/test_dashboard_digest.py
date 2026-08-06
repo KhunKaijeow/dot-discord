@@ -55,6 +55,25 @@ class FakeHttpClient:
         )
 
 
+class RateLimitedYahooClient:
+    def __init__(self):
+        self.requests = []
+
+    def get(self, url: str, **kwargs):
+        self.requests.append((url, kwargs))
+        if "query1.finance.yahoo.com" in url:
+            return FakeResponse({}, status=429)
+        return FakeResponse(
+            {
+                "chart": {
+                    "result": [
+                        {"indicators": {"quote": [{"close": [200.0, 210.0]}]}}
+                    ]
+                }
+            }
+        )
+
+
 class DashboardDigestTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -93,6 +112,16 @@ class DashboardDigestTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(metrics["SPY"])
         self.assertEqual(metrics["Gold"]["price"], 105.0)
         self.assertEqual(set(metrics), {"Gold", "SPY", "SET", "USDTHB"})
+
+    async def test_market_fetch_retries_rate_limit_with_headers(self):
+        client = RateLimitedYahooClient()
+
+        metrics = await fetch_financial_metrics(client)
+
+        self.assertEqual(metrics["SPY"]["price"], 210.0)
+        self.assertEqual(len(client.requests), 8)
+        for _url, kwargs in client.requests:
+            self.assertIn("User-Agent", kwargs["headers"])
 
     async def test_dashboard_builds_when_news_is_unavailable(self):
         bot = self.make_bot()

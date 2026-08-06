@@ -320,7 +320,8 @@ Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg
 - `LoginFailure: Improper token` — สร้างหรือคัดลอก Discord Bot Token ใหม่
 - Slash Commands ไม่แสดง — ตรวจ scope `applications.commands` และรอให้ Discord sync
 - เล่นเพลงไม่ได้ — ตรวจว่า FFmpeg/Opus และ Deno 2.3+ หรือ Node.js 22+
-  ติดตั้งแล้ว รวมถึงตรวจสิทธิ์ Connect/Speak ของบอท
+  ติดตั้งแล้ว ห้องเสียงต้องมี View Channel/Connect/Speak และห้อง
+  ข้อความต้องมี View Channel/Send Messages/Embed Links
 - คำสั่ง Valorant ใช้ไม่ได้ — ตรวจ `VALORANT_API_KEY`; ฟีเจอร์อื่นยังใช้งานได้ตามปกติ
 - คำสั่งดูดวงใช้ไม่ได้ — ตรวจ Prokerala credentials และเครดิตคงเหลือของบัญชี
 - Dashboard ไม่อัปเดต — ตรวจว่าบอทออนไลน์เวลา 08:00 น. ตามเวลาไทย,

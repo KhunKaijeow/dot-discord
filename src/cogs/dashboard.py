@@ -27,6 +27,14 @@ BANGKOK_TIMEZONE = ZoneInfo("Asia/Bangkok")
 DASHBOARD_UPDATE_TIME = time(hour=8, minute=0, tzinfo=BANGKOK_TIMEZONE)
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20)
 MARKET_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=12)
+YAHOO_CHART_HOSTS = (
+    "https://query1.finance.yahoo.com",
+    "https://query2.finance.yahoo.com",
+)
+YAHOO_REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; JavisDiscordBot/1.0)",
+    "Accept": "application/json",
+}
 MARKET_SYMBOLS = {
     "Gold": "GC=F",
     "SPY": "SPY",
@@ -80,28 +88,33 @@ def parse_chart_metric(payload: dict) -> dict[str, float]:
 async def fetch_financial_metrics(http_client) -> dict[str, dict | None]:
     """Fetch dashboard metrics concurrently, preserving partial results."""
     async def fetch_one(name: str, symbol: str) -> tuple[str, dict | None]:
-        url = (
-            "https://query1.finance.yahoo.com/v8/finance/chart/"
-            f"{quote(symbol, safe='')}"
-        )
-        try:
-            async with http_client.get(
-                url,
-                params={"range": "5d", "interval": "1d"},
-                timeout=MARKET_REQUEST_TIMEOUT,
-            ) as response:
-                if response.status != 200:
-                    logger.warning(
-                        "Yahoo chart returned HTTP %s for %s",
-                        response.status,
-                        symbol,
-                    )
-                    return name, None
-                payload = await response.json(content_type=None)
-            return name, parse_chart_metric(payload)
-        except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
-            logger.warning("Could not fetch dashboard metric %s", symbol, exc_info=True)
-            return name, None
+        for host in YAHOO_CHART_HOSTS:
+            url = f"{host}/v8/finance/chart/{quote(symbol, safe='')}"
+            try:
+                async with http_client.get(
+                    url,
+                    params={"range": "5d", "interval": "1d"},
+                    headers=YAHOO_REQUEST_HEADERS,
+                    timeout=MARKET_REQUEST_TIMEOUT,
+                ) as response:
+                    if response.status != 200:
+                        logger.warning(
+                            "Yahoo chart returned HTTP %s for %s via %s",
+                            response.status,
+                            symbol,
+                            host,
+                        )
+                        continue
+                    payload = await response.json(content_type=None)
+                return name, parse_chart_metric(payload)
+            except (aiohttp.ClientError, TimeoutError, ValueError, TypeError):
+                logger.warning(
+                    "Could not fetch dashboard metric %s via %s",
+                    symbol,
+                    host,
+                    exc_info=True,
+                )
+        return name, None
 
     results = await asyncio.gather(
         *(fetch_one(name, symbol) for name, symbol in MARKET_SYMBOLS.items())

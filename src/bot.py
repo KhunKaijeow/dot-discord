@@ -43,6 +43,42 @@ COG_EXTENSIONS = (
 )
 
 
+def app_command_error_message(
+    interaction: discord.Interaction,
+    error: app_commands.AppCommandError,
+) -> str | None:
+    """Map known command failures to actionable, non-sensitive messages."""
+    if isinstance(error, app_commands.CommandOnCooldown):
+        return f"ใจเย็นนิดนึงนะ รออีก `{error.retry_after:.1f}` วินาทีแล้วลองใหม่ได้เลย"
+    if isinstance(error, app_commands.MissingPermissions):
+        missing = ", ".join(error.missing_permissions)
+        return f"คำสั่งนี้ต้องใช้สิทธิ์เพิ่ม: {missing}"
+    if isinstance(error, app_commands.BotMissingPermissions):
+        missing = ", ".join(error.missing_permissions)
+        return f"บอทยังขาดสิทธิ์: {missing}"
+
+    root_error = getattr(error, "original", error)
+    if isinstance(root_error, discord.Forbidden):
+        permissions = interaction.app_permissions
+        missing = []
+        if not permissions.view_channel:
+            missing.append("View Channel")
+        if not permissions.send_messages:
+            missing.append("Send Messages")
+        if not permissions.embed_links:
+            missing.append("Embed Links")
+        if not permissions.attach_files:
+            missing.append("Attach Files")
+        if missing:
+            return f"บอทถูกปฏิเสธสิทธิ์ในห้องนี้: {', '.join(missing)}"
+        return "Discord ปฏิเสธการทำงานของบอท ลองตรวจ Role และ Channel Overrides"
+    if isinstance(root_error, discord.NotFound) and root_error.code in {10062, 10015}:
+        return "คำสั่งหมดเวลาก่อนตอบกลับ ลองเรียกคำสั่งใหม่อีกครั้งนะ"
+    if isinstance(root_error, TimeoutError):
+        return "บริการภายนอกตอบช้าเกินไป รอสักครู่แล้วลองใหม่นะ"
+    return None
+
+
 class JavisBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.default()
@@ -142,11 +178,8 @@ async def on_app_command_error(
     interaction: discord.Interaction,
     error: app_commands.AppCommandError,
 ) -> None:
-    if isinstance(error, app_commands.CommandOnCooldown):
-        message = f"ใจเย็นนิดนึงนะ รออีก `{error.retry_after:.1f}` วินาทีแล้วลองใหม่ได้เลย"
-    elif isinstance(error, app_commands.MissingPermissions):
-        message = "คำสั่งนี้ต้องใช้สิทธิ์ผู้ดูแลเพิ่มอีกนิดนะ"
-    else:
+    message = app_command_error_message(interaction, error)
+    if message is None:
         message = "อุ๊ปส์ คำสั่งสะดุดนิดหน่อย ลองใหม่อีกทีนะ"
         root_error = getattr(error, "original", error)
         logger.error(
@@ -154,7 +187,10 @@ async def on_app_command_error(
             type(root_error).__name__,
             exc_info=(type(root_error), root_error, root_error.__traceback__),
         )
-    if interaction.response.is_done():
-        await interaction.followup.send(message, ephemeral=True)
-    else:
-        await interaction.response.send_message(message, ephemeral=True)
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+    except discord.HTTPException:
+        logger.exception("Could not deliver application command error message")

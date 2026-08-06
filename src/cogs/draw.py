@@ -23,6 +23,20 @@ class ImageGenerationError(RuntimeError):
     """Raised when Together AI cannot produce a downloadable image."""
 
 
+def image_generation_error_message(error: Exception) -> str:
+    """Return a useful message for known Together AI failures."""
+    detail = str(error)
+    if "HTTP 401" in detail:
+        return "TOGETHER_API_KEY ใช้งานไม่ได้ ลองสร้าง key ใหม่แล้ว restart บอทนะ"
+    if "HTTP 402" in detail:
+        return "Together AI มีเครดิตไม่พอสำหรับสร้างภาพ"
+    if "HTTP 404" in detail:
+        return "โมเดลสร้างภาพนี้ไม่มีให้ใช้แล้ว ต้องอัปเดตชื่อโมเดล"
+    if "HTTP 429" in detail:
+        return "Together AI จำกัดจำนวนคำขอ รอสักครู่แล้วลองใหม่นะ"
+    return "รอบนี้สร้างภาพไม่สำเร็จ ลองใหม่อีกทีนะ"
+
+
 async def generate_flux_image(
     prompt: str,
     api_key: str | None,
@@ -111,10 +125,10 @@ class DrawControlView(discord.ui.View):
                 view=self,
                 attachments=[file],
             )
-        except Exception:
+        except Exception as error:
             logger.exception("Error regenerating image")
             await interaction.followup.send(
-                "😅 รอบนี้สร้างภาพใหม่ไม่สำเร็จ ลองอีกทีนะ",
+                image_generation_error_message(error),
                 ephemeral=True,
             )
 
@@ -145,12 +159,12 @@ class DrawCog(commands.Cog):
 
             view = DrawControlView(prompt, TOGETHER_API_KEY, self.bot.external_http)
             await interaction.followup.send(embed=embed, file=file, view=view)
-        except Exception:
+        except Exception as error:
             logger.exception("Error generating image")
             await interaction.followup.send(
                 embed=make_notice_embed(
                     self.bot, "Image Studio",
-                    "😅 รอบนี้สร้างภาพไม่สำเร็จ ลองใหม่อีกทีนะ",
+                    image_generation_error_message(error),
                     color=EmbedColor.ERROR,
                 )
             )
