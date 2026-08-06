@@ -10,17 +10,172 @@ from ..services.database import Database
 logger = logging.getLogger("discord.javis")
 
 
+class BasicInfoModal(discord.ui.Modal):
+    def __init__(self, cog: "WelcomeCog", guild_id: int, event_type: Literal["welcome", "leave"], current_config: dict[str, Any]):
+        super().__init__(title=f"Editing: {event_type.capitalize()} Card")
+        self.cog = cog
+        self.guild_id = guild_id
+        self.event_type = event_type
+        self.current_config = current_config
+
+        self.card_title = discord.ui.TextInput(
+            label="Title",
+            default=current_config.get("title", ""),
+            placeholder="e.g. Welcome to {server_name}!",
+            max_length=256,
+            required=False
+        )
+        self.description = discord.ui.TextInput(
+            label="Description",
+            style=discord.TextStyle.paragraph,
+            default=current_config.get("description", ""),
+            placeholder="e.g. ยินดีต้อนรับคุณ {member} เข้าสู่เซิร์ฟเวอร์นะครับ! 💖",
+            max_length=2000,
+            required=True
+        )
+        self.color_hex = discord.ui.TextInput(
+            label="Hex Color",
+            default=current_config.get("color", ""),
+            placeholder="e.g. #ffb6c1",
+            max_length=7,
+            required=False
+        )
+
+        self.add_item(self.card_title)
+        self.add_item(self.description)
+        self.add_item(self.color_hex)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        color_val = self.color_hex.value.strip()
+        if color_val:
+            clean_hex = color_val.lstrip("#")
+            if not re.match(r"^[0-9a-fA-F]{6}$", clean_hex):
+                await interaction.response.send_message(
+                    "❌ รหัสสี Hex ไม่ถูกต้อง กรุณากรอกแบบ 6 หลัก เช่น `#ffb6c1`",
+                    ephemeral=True
+                )
+                return
+
+        self.current_config["type"] = "embed"
+        self.current_config["title"] = self.card_title.value.strip()
+        self.current_config["description"] = self.description.value.strip()
+        self.current_config["color"] = color_val
+
+        self.cog.database.save_welcome_config(self.guild_id, self.event_type, self.current_config)
+        await interaction.response.send_message(
+            f"✅ อัปเดตข้อมูลพื้นฐานการ์ด **{self.event_type.capitalize()}** สำเร็จแล้วครับ!",
+            ephemeral=True
+        )
+
+
+class ImagesModal(discord.ui.Modal):
+    def __init__(self, cog: "WelcomeCog", guild_id: int, event_type: Literal["welcome", "leave"], current_config: dict[str, Any]):
+        super().__init__(title=f"Editing Images: {event_type.capitalize()} Card")
+        self.cog = cog
+        self.guild_id = guild_id
+        self.event_type = event_type
+        self.current_config = current_config
+
+        self.image_url = discord.ui.TextInput(
+            label="Banner Image / GIF URL",
+            default=current_config.get("image_url", ""),
+            placeholder="e.g. https://media.giphy.com/...",
+            required=False
+        )
+        self.thumbnail_mode = discord.ui.TextInput(
+            label="Thumbnail Mode (User Avatar / Server Icon / None)",
+            default=current_config.get("thumbnail_mode", "None"),
+            placeholder="User Avatar, Server Icon, or None",
+            max_length=20,
+            required=False
+        )
+
+        self.add_item(self.image_url)
+        self.add_item(self.thumbnail_mode)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        mode = self.thumbnail_mode.value.strip().title()
+        if mode not in ["User Avatar", "Server Icon", "None"]:
+            mode = "None"
+
+        self.current_config["type"] = "embed"
+        self.current_config["image_url"] = self.image_url.value.strip()
+        self.current_config["thumbnail_mode"] = mode
+
+        self.cog.database.save_welcome_config(self.guild_id, self.event_type, self.current_config)
+        await interaction.response.send_message(
+            f"✅ อัปเดตภาพการ์ด **{self.event_type.capitalize()}** สำเร็จแล้วครับ!",
+            ephemeral=True
+        )
+
+
+class WelcomeEditorView(discord.ui.View):
+    def __init__(self, cog: "WelcomeCog", guild_id: int, event_type: Literal["welcome", "leave"]):
+        super().__init__(timeout=300)
+        self.cog = cog
+        self.guild_id = guild_id
+        self.event_type = event_type
+
+    def _get_config(self) -> dict[str, Any]:
+        settings = self.cog.database.get_welcome_settings(self.guild_id)
+        config = None
+        if settings:
+            config = settings[f"{self.event_type}_config"]
+        if not config:
+            config = {}
+        return config
+
+    @discord.ui.button(
+        label="edit basic information (color / title / description)",
+        style=discord.ButtonStyle.secondary,
+        custom_id="edit_basic_info"
+    )
+    async def edit_basic_info(self, interaction: discord.Interaction, _: discord.ui.Button):
+        config = self._get_config()
+        modal = BasicInfoModal(self.cog, self.guild_id, self.event_type, config)
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(
+        label="edit images",
+        style=discord.ButtonStyle.secondary,
+        custom_id="edit_images"
+    )
+    async def edit_images(self, interaction: discord.Interaction, _: discord.ui.Button):
+        config = self._get_config()
+        modal = ImagesModal(self.cog, self.guild_id, self.event_type, config)
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(
+        label="test",
+        style=discord.ButtonStyle.success,
+        custom_id="test_notification"
+    )
+    async def test_notification(self, interaction: discord.Interaction, _: discord.ui.Button):
+        settings = self.cog.database.get_welcome_settings(self.guild_id)
+        if not settings or not settings["channel_id"]:
+            await interaction.response.send_message(
+                "❌ กรุณาตั้งค่าช่องส่งการ์ดด้วยคำสั่ง `/welcome-channel` ก่อนทำการทดสอบครับ",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message(
+            f"⏳ กำลังจำลองการส่งการ์ด **{self.event_type.capitalize()}** ไปยังช่องการแจ้งเตือน...",
+            ephemeral=True
+        )
+        if isinstance(interaction.user, discord.Member):
+            await self.cog._send_notification(interaction.guild, interaction.user, self.event_type)
+
+
 class WelcomeCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # Retrieve db instance from bot or instantiate it
         self.database = getattr(bot, "database", None) or Database()
 
     def _format_text(self, text: str, member: discord.Member) -> str:
         """Replace placeholders in template text with actual member and guild values."""
         if not text:
             return ""
-        # Placeholders mapping
         replacements = {
             "{member}": member.mention,
             "{member_name}": member.name,
@@ -33,7 +188,7 @@ class WelcomeCog(commands.Cog):
         return text
 
     def _parse_color(self, hex_str: str | None, default_color: int) -> int:
-        """Parse hex color string (e.g., '#ffb6c1' or 'ffb6c1') to int."""
+        """Parse hex color string to int."""
         if not hex_str:
             return default_color
         hex_str = hex_str.strip().lstrip("#")
@@ -59,7 +214,7 @@ class WelcomeCog(commands.Cog):
 
         config = settings[f"{config_type}_config"]
         if not config:
-            # Default fallback configs if not customized yet
+            # Default fallback configs
             if config_type == "welcome":
                 config = {
                     "type": "embed",
@@ -80,7 +235,6 @@ class WelcomeCog(commands.Cog):
         try:
             if config.get("type") == "text":
                 content = self._format_text(config.get("text", ""), member)
-                # Allow user mentions in text notifications
                 await channel.send(
                     content=content,
                     allowed_mentions=discord.AllowedMentions(users=True)
@@ -99,35 +253,29 @@ class WelcomeCog(commands.Cog):
                 if title:
                     embed.title = title
 
-                # Footer with member count
                 member_count_text = f"คุณคือสมาชิกคนที่ {guild.member_count}" if config_type == "welcome" else f"เหลือสมาชิกทั้งหมด {guild.member_count} คน"
                 embed.set_footer(text=member_count_text)
 
-                # Thumbnail configuration
                 thumbnail_mode = config.get("thumbnail_mode", "None")
                 if thumbnail_mode == "User Avatar":
                     embed.set_thumbnail(url=member.display_avatar.url)
                 elif thumbnail_mode == "Server Icon" and guild.icon:
                     embed.set_thumbnail(url=guild.icon.url)
 
-                # Big image configuration (banner or GIF)
                 image_url = config.get("image_url")
                 if image_url:
                     embed.set_image(url=image_url)
 
-                # Mentions inside embed description (does not ping users, but highlights name)
                 await channel.send(embed=embed)
         except Exception:
             logger.exception("Failed to send welcome/goodbye notification for guild %s", guild.id)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
-        """Triggered when a member joins the guild."""
         await self._send_notification(member.guild, member, "welcome")
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
-        """Triggered when a member leaves the guild."""
         await self._send_notification(member.guild, member, "leave")
 
     # Slash commands
@@ -142,7 +290,6 @@ class WelcomeCog(commands.Cog):
             await interaction.response.send_message("คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์ครับ", ephemeral=True)
             return
 
-        # Check permissions
         if not interaction.user.guild_permissions.manage_channels:
             await interaction.response.send_message("❌ คุณต้องมีสิทธิ์ Manage Channels เพื่อตั้งค่าช่องครับ", ephemeral=True)
             return
@@ -155,7 +302,7 @@ class WelcomeCog(commands.Cog):
 
     @app_commands.command(
         name="welcome-set-message",
-        description="ตั้งค่าข้อความดิบต้อนรับหรือบอกลาแบบข้อความธรรมดา (ไม่ใส่ Embed)",
+        description="ตั้งค่าข้อความดิบต้อนรับหรือบอกลาแบบข้อความธรรมดา (ไม่ใช้ Embed)",
     )
     @app_commands.describe(
         event_type="ประเภทกิจกรรม (Welcome = ต้อนรับคนเข้า / Goodbye = บอกลาคนออก)",
@@ -178,7 +325,6 @@ class WelcomeCog(commands.Cog):
         }
         self.database.save_welcome_config(interaction.guild.id, config_type, config)
         
-        # Check if channel is configured
         settings = self.database.get_welcome_settings(interaction.guild.id)
         channel_status = ""
         if not settings or not settings["channel_id"]:
@@ -191,59 +337,35 @@ class WelcomeCog(commands.Cog):
 
     @app_commands.command(
         name="welcome-set-embed",
-        description="ตั้งค่าการ์ด Embed ต้อนรับหรือบอกลาสมาชิกใหม่สไตล์บอท mimu",
+        description="เปิดใช้งานเครื่องมือออกแบบการ์ด Embed ต้อนรับ/บอกลาแบบโต้ตอบ (Interactive Embed Builder)",
     )
     @app_commands.describe(
-        event_type="ประเภทกิจกรรม (Welcome = ต้อนรับคนเข้า / Goodbye = บอกลาคนออก)",
-        description="รายละเอียดเนื้อหาใน Embed (รองรับ {member}, {member_name}, {server_name}, {member_count})",
-        title="หัวข้อของการ์ด Embed (รองรับตัวแปรเดียวกัน)",
-        color_hex="รหัสสีของการ์ดแบบ Hex เช่น #ffb6c1 หรือ ffb6c1",
-        thumbnail_mode="ประเภทของรูปภาพกล่องเล็กมุมขวาบน",
-        image_url="ลิงก์ของรูปแบนเนอร์หรือภาพเคลื่อนไหว GIF ขนาดใหญ่ที่ท้ายการ์ด"
+        event_type="เลือกประเภทกิจกรรมที่ต้องการออกแบบการ์ด Embed"
     )
     @app_commands.default_permissions(manage_guild=True)
     async def welcome_set_embed(
         self,
         interaction: discord.Interaction,
-        event_type: Literal["Welcome", "Goodbye"],
-        description: str,
-        title: str | None = None,
-        color_hex: str | None = None,
-        thumbnail_mode: Literal["User Avatar", "Server Icon", "None"] = "None",
-        image_url: str | None = None
+        event_type: Literal["Welcome", "Goodbye"]
     ) -> None:
         if not interaction.guild:
             return
 
-        # Validate hex color
-        if color_hex:
-            clean_hex = color_hex.strip().lstrip("#")
-            if not re.match(r"^[0-9a-fA-F]{6}$", clean_hex):
-                await interaction.response.send_message(
-                    "❌ รหัสสี Hex ไม่ถูกต้อง กรุณากรอกแบบ 6 หลัก เช่น `#ffb6c1` หรือ `ffb6c1` ครับ",
-                    ephemeral=True
-                )
-                return
-
         config_type = "welcome" if event_type == "Welcome" else "leave"
-        config = {
-            "type": "embed",
-            "description": description,
-            "title": title,
-            "color": color_hex,
-            "thumbnail_mode": thumbnail_mode,
-            "image_url": image_url
-        }
-        self.database.save_welcome_config(interaction.guild.id, config_type, config)
-        
-        # Check if channel is configured
-        settings = self.database.get_welcome_settings(interaction.guild.id)
-        channel_status = ""
-        if not settings or not settings["channel_id"]:
-            channel_status = "\n⚠️ *หมายเหตุ: บอทยังไม่มีการตั้งค่าช่องส่งการ์ด กรุณาใช้คำสั่ง `/welcome-channel` ด้วยครับ*"
+        view = WelcomeEditorView(self, interaction.guild.id, config_type)
+
+        embed = discord.Embed(
+            title=f"⭐ successfully created an embed called: {config_type}",
+            description=(
+                "please select from the buttons below for what you'd like to edit!\n"
+                "alternatively, you can edit these individually in slash commands with `/embed edit`."
+            ),
+            color=0x2ecc71
+        )
 
         await interaction.response.send_message(
-            f"✅ ตั้งค่าการ์ด Embed สำหรับกิจกรรม **{event_type}** เรียบร้อยครับ!{channel_status}",
+            embed=embed,
+            view=view,
             ephemeral=True
         )
 
@@ -264,13 +386,11 @@ class WelcomeCog(commands.Cog):
             )
             return
 
-        # Inform the user and start the simulation
         await interaction.response.send_message(
             "⏳ กำลังทำการทดสอบจำลองส่งข้อความต้อนรับและบอกลาไปยังช่องการแจ้งเตือน...",
             ephemeral=True
         )
         
-        # Simulate join and leave using the command sender's profile
         await self._send_notification(interaction.guild, interaction.user, "welcome")
         await self._send_notification(interaction.guild, interaction.user, "leave")
 
