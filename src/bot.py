@@ -36,12 +36,14 @@ COG_EXTENSIONS = (
     "src.cogs.admin",
     "src.cogs.health",
     "src.cogs.ai_tools",
+    "src.cogs.welcome",
 )
 
 
 class GeminiBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
+        intents.members = True
         super().__init__(
             command_prefix="!",
             intents=intents,
