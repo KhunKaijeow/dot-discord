@@ -49,6 +49,27 @@ class Track:
     youtube_url: str
     requester: discord.abc.User
     requested_via: str
+    source_url: str | None = None
+
+    @property
+    def display_url(self) -> str:
+        """Prefer the user's source link while retaining YouTube playback."""
+        return self.source_url or self.youtube_url
+
+    @property
+    def is_spotify(self) -> bool:
+        return self.requested_via.startswith("Spotify")
+
+
+@dataclass(frozen=True, slots=True)
+class SpotifyTrackMetadata:
+    title: str
+    artist: str
+    canonical_url: str
+
+    @property
+    def search_text(self) -> str:
+        return " ".join(part for part in (self.title, self.artist) if part)
 
 
 def _javascript_runtimes() -> dict[str, dict[str, str]]:
@@ -121,7 +142,10 @@ def _extract_youtube_info(query: str, *, flat: bool) -> dict[str, Any]:
         return _first_entry(ytdl.extract_info(query, download=False))
 
 
-async def _spotify_search_text(url: str, http_client: HttpClient) -> str:
+async def _spotify_track_metadata(
+    url: str,
+    http_client: HttpClient,
+) -> SpotifyTrackMetadata:
     timeout = aiohttp.ClientTimeout(total=15)
     headers = {"User-Agent": "JavisDiscordBot/1.0"}
 
@@ -164,8 +188,57 @@ async def _spotify_search_text(url: str, http_client: HttpClient) -> str:
     if not title:
         raise MusicError("Spotify ไม่ส่งชื่อเพลงกลับมา")
 
-    search_text = " ".join(part for part in (title, artist) if part)
-    return f"{search_text} official audio"
+    return SpotifyTrackMetadata(
+        title=title,
+        artist=artist,
+        canonical_url=clean_url,
+    )
+
+
+async def _resolve_single_youtube(
+    queries: tuple[str, ...],
+    *,
+    spotify_source: bool,
+) -> dict[str, Any]:
+    """Resolve one YouTube result and retain Spotify-specific context."""
+    last_error: Exception | None = None
+    for youtube_query in queries:
+        try:
+            return await asyncio.to_thread(
+                _extract_youtube_info,
+                youtube_query,
+                flat=True,
+            )
+        except Exception as error:
+            last_error = error
+
+    if spotify_source:
+        raise MusicError(
+            "อ่านข้อมูลเพลงจาก Spotify ได้แล้ว แต่หาเพลงคู่กันบน YouTube ไม่สำเร็จ "
+            "(Spotify ใช้เป็นข้อมูลเพลง ส่วนเสียงจะเล่นผ่าน YouTube)"
+        ) from last_error
+    if isinstance(last_error, MusicError):
+        raise last_error
+    raise MusicError("ค้นหาเพลงบน YouTube ไม่สำเร็จ") from last_error
+
+
+def playback_error_message(track: Track, error: Exception) -> str:
+    """Add the original music provider to playback errors."""
+    if track.is_spotify:
+        return (
+            "อ่านรายการจาก Spotify สำเร็จ แต่เตรียมเสียงจาก YouTube ไม่สำเร็จ "
+            "ลองเพลงอื่นหรือใช้ลิงก์ YouTube โดยตรงนะ"
+        )
+    return str(error)
+
+
+def playback_queries(track: Track) -> tuple[str, ...]:
+    """Return ordered audio lookups, adding a broader Spotify fallback."""
+    primary = track.youtube_url
+    suffix = " official audio"
+    if track.is_spotify and primary.startswith("ytsearch1:") and primary.endswith(suffix):
+        return primary, primary.removesuffix(suffix)
+    return (primary,)
 
 
 async def _resolve_youtube_playlist(url: str, requester: discord.abc.User) -> list[Track]:
@@ -234,6 +307,8 @@ async def _resolve_spotify_playlist(
                 raise MusicError("การขอสิทธิ์เข้าถึง Spotify API (Token) ล้มเหลว")
             token_data = await token_resp.json()
             access_token = token_data.get("access_token")
+            if not access_token:
+                raise MusicError("Spotify API ไม่ส่ง access token กลับมา")
                 
         # 2. Get playlist tracks (up to 100 tracks)
         tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
@@ -297,6 +372,9 @@ async def resolve_tracks(
     parsed = urlparse(query)
     host = parsed.hostname.lower().removeprefix("www.") if parsed.hostname else ""
     requested_via = "YouTube"
+    source_url: str | None = None
+    source_title: str | None = None
+    youtube_queries: tuple[str, ...]
 
     # 1. Spotify Hosts
     if host in SPOTIFY_HOSTS:
@@ -327,9 +405,17 @@ async def resolve_tracks(
                 http_client,
             )
         elif len(path_parts) >= 2 and path_parts[-2] == "track":
-            search_text = await _spotify_search_text(clean_url, http_client)
-            youtube_query = f"ytsearch1:{search_text}"
+            metadata = await _spotify_track_metadata(clean_url, http_client)
+            youtube_queries = (
+                f"ytsearch1:{metadata.search_text} official audio",
+                f"ytsearch1:{metadata.search_text}",
+            )
             requested_via = "Spotify → YouTube"
+            source_url = metadata.canonical_url
+            source_title = (
+                f"{metadata.title} — {metadata.artist}"
+                if metadata.artist else metadata.title
+            )
         else:
             raise MusicError("รองรับเฉพาะลิงก์เพลงเดี่ยวและเพลย์ลิสต์ของ Spotify เท่านั้น")
 
@@ -343,38 +429,40 @@ async def resolve_tracks(
         if "list" in query_params:
             return await _resolve_youtube_playlist(query, requester)
             
-        youtube_query = query
+        youtube_queries = (query,)
     else:
-        youtube_query = f"ytsearch1:{query}"
+        youtube_queries = (f"ytsearch1:{query}",)
 
-    # Single track resolution (as before)
     try:
-        data = await asyncio.to_thread(
-            _extract_youtube_info,
-            youtube_query,
-            flat=True,
+        data = await _resolve_single_youtube(
+            youtube_queries,
+            spotify_source=requested_via.startswith("Spotify"),
         )
     except MusicError:
+        logger.warning("Track resolution failed for %r via %s", query, requested_via)
         raise
-    except Exception as error:
-        logger.exception("YouTube track resolution failed for %r", query)
-        raise MusicError("ค้นหาเพลงบน YouTube ไม่สำเร็จ") from error
 
     video_id = data.get("id")
     webpage_url = data.get("webpage_url") or data.get("url")
     if video_id and data.get("extractor_key") in {"Youtube", "YoutubeTab"}:
         webpage_url = YOUTUBE_WATCH_URL.format(video_id=video_id)
-    elif video_id and youtube_query.startswith("ytsearch"):
+    elif video_id and any(item.startswith("ytsearch") for item in youtube_queries):
         webpage_url = YOUTUBE_WATCH_URL.format(video_id=video_id)
 
     if not webpage_url:
+        if requested_via.startswith("Spotify"):
+            raise MusicError(
+                "อ่านข้อมูลเพลงจาก Spotify ได้แล้ว "
+                "แต่ YouTube ไม่ส่งลิงก์เสียงกลับมา"
+            )
         raise MusicError("YouTube ไม่ส่งลิงก์สำหรับเพลงนี้กลับมา")
 
     return [Track(
-        title=data.get("title") or "Unknown Song",
+        title=source_title or data.get("title") or "Unknown Song",
         youtube_url=webpage_url,
         requester=requester,
         requested_via=requested_via,
+        source_url=source_url,
     )]
 
 
@@ -501,7 +589,19 @@ class GuildMusicState:
             )
         )
         try:
-            source = await YouTubeAudioSource.create(track.youtube_url, self.volume)
+            source = None
+            last_error: MusicError | None = None
+            for playback_query in playback_queries(track):
+                try:
+                    source = await YouTubeAudioSource.create(
+                        playback_query,
+                        self.volume,
+                    )
+                    break
+                except MusicError as error:
+                    last_error = error
+            if source is None:
+                raise last_error or MusicError("เตรียมเสียงไม่สำเร็จ")
             voice_client.play(source, after=self._after_playing)
         except MusicError as error:
             logger.warning(
@@ -513,7 +613,10 @@ class GuildMusicState:
             await loading_message.edit(
                 content=None,
                 embed=make_notice_embed(
-                    self.bot, "Music", f"😅 {error}", color=EmbedColor.ERROR,
+                    self.bot,
+                    "Music",
+                    playback_error_message(track, error),
+                    color=EmbedColor.ERROR,
                 ),
             )
             return False
@@ -541,7 +644,7 @@ class GuildMusicState:
         )
         embed = discord.Embed(
             title="🎵 กำลังเล่น",
-            description=f"**[{source.title}]({track.youtube_url})**",
+            description=f"**[{track.title}]({track.display_url})**",
             color=EmbedColor.MUSIC,
         )
         set_embed_author(embed, self.bot, "Music • กำลังเล่น")
@@ -912,7 +1015,7 @@ class MusicCog(commands.Cog):
             track = tracks[0]
             embed = discord.Embed(
                 title="🎵 กำลังเล่น" if is_playing_now else "📥 เพิ่มเข้าคิวแล้ว",
-                description=f"**[{track.title}]({track.youtube_url})**",
+                description=f"**[{track.title}]({track.display_url})**",
                 color=EmbedColor.SUCCESS if is_playing_now else EmbedColor.INFO,
             )
             set_embed_author(
@@ -1007,7 +1110,7 @@ class MusicCog(commands.Cog):
         if state.current:
             embed.add_field(
                 name="▶️ ตอนนี้กำลังเล่น",
-                value=f"**[{state.current.title}]({state.current.youtube_url})**",
+                value=f"**[{state.current.title}]({state.current.display_url})**",
                 inline=False,
             )
         else:
@@ -1019,7 +1122,7 @@ class MusicCog(commands.Cog):
         
         queue_items = []
         for index, track in enumerate(list(state.queue)[:10], start=1):
-            queue_items.append(f"`{index:02d}` [{track.title}]({track.youtube_url})")
+            queue_items.append(f"`{index:02d}` [{track.title}]({track.display_url})")
         queue_text = "\n".join(queue_items)
         if len(state.queue) > 10:
             queue_text += f"\n*และอีก {len(state.queue) - 10} เพลงในคิว*"
@@ -1046,7 +1149,7 @@ class MusicCog(commands.Cog):
             self.bot,
             "Music",
             title="🎵 เพลงที่กำลังเล่น",
-            description=f"**[{state.current.title}]({state.current.youtube_url})**",
+            description=f"**[{state.current.title}]({state.current.display_url})**",
             color=EmbedColor.MUSIC,
         )
         embed.add_field(name="🔊 ระดับเสียง", value=f"`{int(state.volume * 100)}%`", inline=True)

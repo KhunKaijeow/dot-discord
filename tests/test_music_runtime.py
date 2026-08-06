@@ -6,11 +6,17 @@ import discord
 from src.cogs.music import (
     GuildMusicState,
     MusicCog,
+    MusicError,
+    SpotifyTrackMetadata,
     Track,
     YOUTUBE_AUDIO_CLIENTS,
     YTDL_OPTIONS,
     _extract_youtube_info,
+    _resolve_single_youtube,
     music_states,
+    playback_error_message,
+    playback_queries,
+    resolve_tracks,
     text_permission_problem,
     voice_permission_problem,
 )
@@ -52,6 +58,78 @@ class MusicRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(options["extract_flat"], "in_playlist")
         self.assertNotIn("extractor_args", options)
         self.assertIn("js_runtimes", YTDL_OPTIONS)
+
+    async def test_spotify_track_keeps_provider_and_uses_two_youtube_searches(self):
+        metadata = SpotifyTrackMetadata(
+            title="Spotify Song",
+            artist="Spotify Artist",
+            canonical_url="https://open.spotify.com/track/abc",
+        )
+        youtube_result = {
+            "id": "video-id",
+            "title": "YouTube title",
+            "extractor_key": "Youtube",
+        }
+
+        with (
+            patch(
+                "src.cogs.music._spotify_track_metadata",
+                AsyncMock(return_value=metadata),
+            ),
+            patch(
+                "src.cogs.music._resolve_single_youtube",
+                AsyncMock(return_value=youtube_result),
+            ) as youtube_resolver,
+        ):
+            tracks = await resolve_tracks(
+                "https://open.spotify.com/track/abc",
+                MagicMock(),
+                MagicMock(),
+            )
+
+        track = tracks[0]
+        self.assertEqual(track.title, "Spotify Song — Spotify Artist")
+        self.assertEqual(track.display_url, "https://open.spotify.com/track/abc")
+        self.assertEqual(track.requested_via, "Spotify → YouTube")
+        queries = youtube_resolver.await_args.args[0]
+        self.assertEqual(len(queries), 2)
+        self.assertTrue(queries[0].endswith("official audio"))
+        self.assertNotIn("official audio", queries[1])
+        self.assertTrue(youtube_resolver.await_args.kwargs["spotify_source"])
+
+    async def test_spotify_youtube_resolution_failure_has_provider_context(self):
+        with patch(
+            "src.cogs.music._extract_youtube_info",
+            side_effect=RuntimeError("youtube unavailable"),
+        ):
+            with self.assertRaises(MusicError) as raised:
+                await _resolve_single_youtube(
+                    ("ytsearch1:Song official audio", "ytsearch1:Song"),
+                    spotify_source=True,
+                )
+
+        self.assertIn("อ่านข้อมูลเพลงจาก Spotify ได้แล้ว", str(raised.exception))
+        self.assertIn("ส่วนเสียงจะเล่นผ่าน YouTube", str(raised.exception))
+
+    def test_spotify_playlist_audio_has_broader_fallback(self):
+        track = Track(
+            title="Song",
+            youtube_url="ytsearch1:Song Artist official audio",
+            requester=MagicMock(),
+            requested_via="Spotify Playlist",
+        )
+
+        queries = playback_queries(track)
+
+        self.assertEqual(
+            queries,
+            (
+                "ytsearch1:Song Artist official audio",
+                "ytsearch1:Song Artist",
+            ),
+        )
+        self.assertIn("Spotify", playback_error_message(track, MusicError("failed")))
+        self.assertIn("YouTube", playback_error_message(track, MusicError("failed")))
 
     def test_voice_permissions_report_missing_capabilities(self):
         interaction = MagicMock()
