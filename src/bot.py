@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from .services.database import Database
+from .services.http_client import HttpClient
 from .services.typhoon import TyphoonService
 from .ui import EmbedColor, make_embed
 
@@ -47,11 +48,13 @@ class JavisBot(commands.Bot):
             intents=intents,
             allowed_mentions=discord.AllowedMentions.none(),
         )
-        self.ai_service = TyphoonService()
+        self.http = HttpClient()
+        self.ai_service = TyphoonService(http_client=self.http)
         self.database = Database()
         self.started_at = datetime.now(timezone.utc)
 
     async def setup_hook(self) -> None:
+        await self.http.start()
         for extension in COG_EXTENSIONS:
             await self.load_extension(extension)
         try:
@@ -59,6 +62,12 @@ class JavisBot(commands.Bot):
             logger.info("Synced %d command(s)", len(synced))
         except Exception:
             logger.exception("Failed to sync application commands")
+
+    async def close(self) -> None:
+        try:
+            await super().close()
+        finally:
+            await self.http.close()
 
 
 bot = JavisBot()

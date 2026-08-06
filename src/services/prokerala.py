@@ -7,6 +7,7 @@ import time
 
 import aiohttp
 
+from .http_client import HttpClient
 from .translation import TranslationService, TranslationServiceError
 
 
@@ -24,11 +25,13 @@ class ProkeralaService:
         self,
         client_id: str | None,
         client_secret: str | None,
+        http_client: HttpClient,
         translator: TranslationService | None = None,
     ):
         self._client_id = client_id
         self._client_secret = client_secret
-        self._translator = translator or TranslationService()
+        self._http = http_client
+        self._translator = translator or TranslationService(http_client)
         self._access_token: str | None = None
         self._access_token_expires_at = 0.0
         self._token_lock = asyncio.Lock()
@@ -54,22 +57,20 @@ class ProkeralaService:
 
             timeout = aiohttp.ClientTimeout(total=20)
             try:
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    token = await self._get_access_token(session)
-                    predictions = await self._fetch_predictions(
-                        session, token, sign, now
-                    )
-                    translated = await asyncio.gather(
-                        *(
-                            self._translator.translate(
-                                predictions[prediction_type],
-                                target_language="th",
-                                source_language="en",
-                                session=session,
-                            )
-                            for prediction_type in PREDICTION_TYPES
+                token = await self._get_access_token(timeout)
+                predictions = await self._fetch_predictions(
+                    token, sign, now, timeout
+                )
+                translated = await asyncio.gather(
+                    *(
+                        self._translator.translate(
+                            predictions[prediction_type],
+                            target_language="th",
+                            source_language="en",
                         )
+                        for prediction_type in PREDICTION_TYPES
                     )
+                )
             except (
                 aiohttp.ClientError,
                 TimeoutError,
@@ -92,7 +93,7 @@ class ProkeralaService:
             self._forecast_cache[cache_key] = result
             return result
 
-    async def _get_access_token(self, session: aiohttp.ClientSession) -> str:
+    async def _get_access_token(self, timeout: aiohttp.ClientTimeout) -> str:
         if self._access_token and time.monotonic() < self._access_token_expires_at:
             return self._access_token
 
@@ -103,8 +104,9 @@ class ProkeralaService:
             ):
                 return self._access_token
 
-            async with session.post(
+            async with self._http.post(
                 PROKERALA_TOKEN_URL,
+                timeout=timeout,
                 data={
                     "grant_type": "client_credentials",
                     "client_id": self._client_id,
@@ -131,13 +133,14 @@ class ProkeralaService:
 
     async def _fetch_predictions(
         self,
-        session: aiohttp.ClientSession,
         token: str,
         sign: str,
         now: datetime,
+        timeout: aiohttp.ClientTimeout,
     ) -> dict[str, str]:
-        async with session.get(
+        async with self._http.get(
             PROKERALA_HOROSCOPE_URL,
+            timeout=timeout,
             headers={"Authorization": f"Bearer {token}"},
             params={
                 "datetime": now.isoformat(timespec="seconds"),

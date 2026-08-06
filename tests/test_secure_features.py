@@ -149,6 +149,21 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             TyphoonService._extract_content({"choices": []})
 
+    def test_typhoon_uses_injected_http_client(self):
+        http_client = MagicMock()
+        response = MagicMock()
+        response.json.return_value = {
+            "choices": [{"message": {"content": "พร้อมครับ"}}]
+        }
+        http_client.request_sync.return_value = response
+        service = TyphoonService(api_key="test-key", http_client=http_client)
+
+        self.assertEqual(
+            service.generate_from_messages([{"role": "user", "content": "สวัสดี"}]),
+            "พร้อมครับ",
+        )
+        http_client.request_sync.assert_called_once()
+
     def test_typhoon_chat_is_reused_and_reset(self):
         service = TyphoonService(api_key="test-key")
         first = service.get_or_create_chat(123)
@@ -207,7 +222,13 @@ class ValidationTests(unittest.TestCase):
         user = MagicMock(spec=discord.User)
         with patch("src.cogs.music.SPOTIFY_CLIENT_ID", None), patch("src.cogs.music.SPOTIFY_CLIENT_SECRET", None):
             with self.assertRaises(MusicError) as context:
-                asyncio.run(resolve_tracks("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGo3712j", user))
+                asyncio.run(
+                    resolve_tracks(
+                        "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGo3712j",
+                        user,
+                        MagicMock(),
+                    )
+                )
             self.assertIn("บอทไม่ได้ตั้งค่าตัวแปร `SPOTIFY_CLIENT_ID`", str(context.exception))
 
 

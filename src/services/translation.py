@@ -2,6 +2,8 @@
 
 import aiohttp
 
+from .http_client import HttpClient
+
 
 GOOGLE_TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
 
@@ -13,7 +15,8 @@ class TranslationServiceError(Exception):
 class TranslationService:
     """Translate text without coupling HTTP details to Discord commands."""
 
-    def __init__(self, timeout_seconds: int = 15):
+    def __init__(self, http_client: HttpClient, timeout_seconds: int = 15):
+        self._http = http_client
         self._timeout = aiohttp.ClientTimeout(total=timeout_seconds)
 
     async def translate(
@@ -21,15 +24,11 @@ class TranslationService:
         text: str,
         target_language: str,
         source_language: str = "auto",
-        session: aiohttp.ClientSession | None = None,
     ) -> tuple[str, str]:
-        owns_session = session is None
-        if session is None:
-            session = aiohttp.ClientSession(timeout=self._timeout)
-
         try:
-            async with session.get(
+            async with self._http.get(
                 GOOGLE_TRANSLATE_URL,
+                timeout=self._timeout,
                 params={
                     "client": "gtx",
                     "sl": source_language,
@@ -45,10 +44,6 @@ class TranslationService:
                 payload = await response.json(content_type=None)
         except (aiohttp.ClientError, TimeoutError, ValueError) as error:
             raise TranslationServiceError("Translation service is unavailable") from error
-        finally:
-            if owns_session:
-                await session.close()
-
         try:
             translated_text = "".join(
                 segment[0] for segment in payload[0] if segment[0]

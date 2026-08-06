@@ -8,6 +8,8 @@ import re
 import aiohttp
 import yfinance as yf
 
+from .http_client import HttpClient
+
 
 SYMBOL_PATTERN = re.compile(r"^[A-Z0-9^][A-Z0-9.^=-]{0,19}$")
 
@@ -32,17 +34,21 @@ def _yahoo_price(symbol: str) -> float:
     return float(history["Close"].iloc[-1])
 
 
-async def get_market_price(asset_type: str, symbol: str) -> tuple[str, float]:
+async def get_market_price(
+    http_client: HttpClient,
+    asset_type: str,
+    symbol: str,
+) -> tuple[str, float]:
     normalized = normalize_symbol(asset_type, symbol)
     if asset_type == "crypto":
         timeout = aiohttp.ClientTimeout(total=15)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(
-                "https://api.binance.com/api/v3/ticker/price",
-                params={"symbol": f"{normalized}USDT"},
-            ) as response:
-                if response.status != 200:
-                    raise ValueError("Crypto price unavailable")
-                payload = await response.json(content_type=None)
+        async with http_client.get(
+            "https://api.binance.com/api/v3/ticker/price",
+            timeout=timeout,
+            params={"symbol": f"{normalized}USDT"},
+        ) as response:
+            if response.status != 200:
+                raise ValueError("Crypto price unavailable")
+            payload = await response.json(content_type=None)
         return normalized, float(payload["price"])
     return normalized, await asyncio.to_thread(_yahoo_price, normalized)

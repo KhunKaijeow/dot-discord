@@ -35,9 +35,11 @@ class MorningDigestCog(commands.Cog):
         set_embed_author(embed, self.bot, "Morning Digest")
         timeout = aiohttp.ClientTimeout(total=12)
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(f"https://wttr.in/{quote(city, safe='')}?format=j1&lang=th") as response:
-                    payload = await response.json(content_type=None) if response.status == 200 else {}
+            async with self.bot.http.get(
+                f"https://wttr.in/{quote(city, safe='')}?format=j1&lang=th",
+                timeout=timeout,
+            ) as response:
+                payload = await response.json(content_type=None) if response.status == 200 else {}
             current = payload.get("current_condition", [{}])[0]
             if current:
                 embed.add_field(

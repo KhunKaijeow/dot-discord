@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..config import TOGETHER_API_KEY
+from ..services.http_client import HttpClient
 from ..ui import EmbedColor, set_embed_author
 
 
@@ -25,6 +26,7 @@ class ImageGenerationError(RuntimeError):
 async def generate_flux_image(
     prompt: str,
     api_key: str | None,
+    http_client: HttpClient,
 ) -> tuple[discord.Embed, discord.File]:
     if not api_key:
         raise ImageGenerationError("TOGETHER_API_KEY is not configured")
@@ -41,24 +43,28 @@ async def generate_flux_image(
         "width": 1024,
     }
 
-    async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
-        async with session.post(TOGETHER_IMAGE_URL, json=payload, headers=headers) as response:
-            if response.status != 200:
-                raise ImageGenerationError(f"Together AI returned HTTP {response.status}")
+    async with http_client.post(
+        TOGETHER_IMAGE_URL,
+        json=payload,
+        headers=headers,
+        timeout=REQUEST_TIMEOUT,
+    ) as response:
+        if response.status != 200:
+            raise ImageGenerationError(f"Together AI returned HTTP {response.status}")
 
-            data = await response.json()
-            image_data_list = data.get("data", [])
-            if not image_data_list:
-                raise ImageGenerationError("Together AI returned no image data")
+        data = await response.json()
+        image_data_list = data.get("data", [])
+        if not image_data_list:
+            raise ImageGenerationError("Together AI returned no image data")
 
-            image_url = image_data_list[0].get("url")
-            if not image_url:
-                raise ImageGenerationError("Together AI returned no image URL")
+        image_url = image_data_list[0].get("url")
+        if not image_url:
+            raise ImageGenerationError("Together AI returned no image URL")
 
-            async with session.get(image_url) as img_response:
-                if img_response.status != 200:
-                    raise ImageGenerationError("Could not download the generated image")
-                img_bytes = await img_response.read()
+        async with http_client.get(image_url, timeout=REQUEST_TIMEOUT) as img_response:
+            if img_response.status != 200:
+                raise ImageGenerationError("Could not download the generated image")
+            img_bytes = await img_response.read()
 
     img_buf = io.BytesIO(img_bytes)
     file = discord.File(img_buf, filename="flux_draw.png")
@@ -73,10 +79,16 @@ async def generate_flux_image(
 
 
 class DrawControlView(discord.ui.View):
-    def __init__(self, prompt: str, api_key: str | None):
+    def __init__(
+        self,
+        prompt: str,
+        api_key: str | None,
+        http_client: HttpClient,
+    ):
         super().__init__(timeout=300)
         self.prompt = prompt
         self.api_key = api_key
+        self.http = http_client
 
     @discord.ui.button(label="สร้างใหม่ (Regenerate)", style=discord.ButtonStyle.primary, emoji="🔄")
     async def regenerate_button(
@@ -86,7 +98,11 @@ class DrawControlView(discord.ui.View):
     ) -> None:
         await interaction.response.defer(thinking=True)
         try:
-            embed, file = await generate_flux_image(self.prompt, self.api_key)
+            embed, file = await generate_flux_image(
+                self.prompt,
+                self.api_key,
+                self.http,
+            )
             set_embed_author(embed, interaction.client, "Image Studio • เวอร์ชันใหม่")
             embed.description = f"วาดให้ {interaction.user.mention}\n> {self.prompt}"
             await interaction.followup.edit_message(
@@ -119,11 +135,15 @@ class DrawCog(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         try:
-            embed, file = await generate_flux_image(prompt, TOGETHER_API_KEY)
+            embed, file = await generate_flux_image(
+                prompt,
+                TOGETHER_API_KEY,
+                self.bot.http,
+            )
             set_embed_author(embed, self.bot, "Image Studio")
             embed.description = f"วาดให้ {interaction.user.mention}\n> {prompt}"
 
-            view = DrawControlView(prompt, TOGETHER_API_KEY)
+            view = DrawControlView(prompt, TOGETHER_API_KEY, self.bot.http)
             await interaction.followup.send(embed=embed, file=file, view=view)
         except Exception:
             logger.exception("Error generating image")

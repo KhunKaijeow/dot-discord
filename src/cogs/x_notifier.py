@@ -68,13 +68,12 @@ class XNotifierCog(commands.Cog):
 
     async def fetch_feed_items(self) -> list[ET.Element]:
         try:
-            async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
-                async with session.get(FEED_URL) as response:
-                    if response.status != 200:
-                        logger.warning("sheapgamer RSS returned HTTP %s", response.status)
-                        return []
-                    root = ET.fromstring(await response.text())
-                    return root.findall(".//item")
+            async with self.bot.http.get(FEED_URL, timeout=REQUEST_TIMEOUT) as response:
+                if response.status != 200:
+                    logger.warning("sheapgamer RSS returned HTTP %s", response.status)
+                    return []
+                root = ET.fromstring(await response.text())
+                return root.findall(".//item")
         except (aiohttp.ClientError, TimeoutError, ET.ParseError):
             logger.exception("Could not fetch sheapgamer RSS")
             return []

@@ -8,6 +8,8 @@ import time
 import aiohttp
 from bs4 import BeautifulSoup
 
+from .http_client import HttpClient
+
 
 MEDIAWIKI_API_URL = "https://en.wikipedia.org/w/api.php"
 SOURCE_PAGE_URL = "https://en.wikipedia.org/wiki/Colors_of_the_day_in_Thailand"
@@ -68,7 +70,8 @@ def _normalize(value: str) -> str:
 class ThaiDailyColorService:
     """Fetch and cache the openly licensed Thai weekday-color table."""
 
-    def __init__(self, cache_seconds: int = CACHE_SECONDS):
+    def __init__(self, http_client: HttpClient, cache_seconds: int = CACHE_SECONDS):
+        self._http = http_client
         self._cache_seconds = cache_seconds
         self._colors: dict[int, DailyColor] = {}
         self._cache_expires_at = 0.0
@@ -103,28 +106,28 @@ class ThaiDailyColorService:
     async def _fetch_colors(self) -> dict[int, DailyColor]:
         timeout = aiohttp.ClientTimeout(total=15)
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(
-                    MEDIAWIKI_API_URL,
-                    params={
-                        "action": "parse",
-                        "page": SOURCE_PAGE_NAME,
-                        "prop": "text",
-                        "format": "json",
-                        "formatversion": "2",
-                    },
-                    headers={
-                        "User-Agent": (
-                            "JavisDiscordBot/1.0 "
-                            "(https://github.com/KhunKaijeow/dot-discord)"
-                        )
-                    },
-                ) as response:
-                    if response.status != 200:
-                        raise DailyColorServiceError(
-                            f"Wikimedia request failed ({response.status})"
-                        )
-                    payload = await response.json(content_type=None)
+            async with self._http.get(
+                MEDIAWIKI_API_URL,
+                timeout=timeout,
+                params={
+                    "action": "parse",
+                    "page": SOURCE_PAGE_NAME,
+                    "prop": "text",
+                    "format": "json",
+                    "formatversion": "2",
+                },
+                headers={
+                    "User-Agent": (
+                        "JavisDiscordBot/1.0 "
+                        "(https://github.com/KhunKaijeow/dot-discord)"
+                    )
+                },
+            ) as response:
+                if response.status != 200:
+                    raise DailyColorServiceError(
+                        f"Wikimedia request failed ({response.status})"
+                    )
+                payload = await response.json(content_type=None)
         except (aiohttp.ClientError, TimeoutError, ValueError) as error:
             raise DailyColorServiceError(
                 "Wikimedia color source is unavailable"

@@ -47,58 +47,57 @@ class NewsCog(commands.Cog):
             title_display = "📰 มีอะไรน่าสนใจวันนี้บ้าง"
 
         try:
-            async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        raise RuntimeError(f"Google News RSS returned HTTP {response.status}")
-                    
-                    xml_content = await response.text()
-                    
-                    # Parse XML using standard library ElementTree
-                    root = ET.fromstring(xml_content)
-                    items = root.findall('.//item')[:7]  # Fetch top 7 news items
-                    
-                    if not items:
-                        embed = make_embed(
-                            self.bot,
-                            "News",
-                            title="🔎 ยังไม่เจอข่าวที่ตรงกัน",
-                            description="ลองเปลี่ยนคำค้นสั้น ๆ แล้วให้ผมหาให้อีกทีนะ",
-                            color=EmbedColor.WARNING,
-                        )
-                        await interaction.followup.send(embed=embed)
-                        return
+            async with self.bot.http.get(url, timeout=REQUEST_TIMEOUT) as response:
+                if response.status != 200:
+                    raise RuntimeError(f"Google News RSS returned HTTP {response.status}")
 
-                    # Build news description text
-                    news_lines = []
-                    for idx, item in enumerate(items, 1):
-                        title_el = item.find("title")
-                        link_el = item.find("link")
-                        pub_date_el = item.find("pubDate")
-                        
-                        title = title_el.text if title_el is not None else "หัวข้อข่าวไม่มีชื่อ"
-                        link = link_el.text if link_el is not None else ""
-                        pub_date = pub_date_el.text if pub_date_el is not None else ""
+                xml_content = await response.text()
 
-                        short_date = format_rss_date(pub_date)
+                # Parse XML using standard library ElementTree
+                root = ET.fromstring(xml_content)
+                items = root.findall('.//item')[:7]  # Fetch top 7 news items
 
-                        if link:
-                            news_lines.append(f"{idx}. [{title}]({link}){short_date}")
-                        else:
-                            news_lines.append(f"{idx}. {title}{short_date}")
-
-                    description_text = "\n\n".join(news_lines)
-
-                    # Build beautiful embed
+                if not items:
                     embed = make_embed(
                         self.bot,
                         "News",
-                        title=title_display,
-                        description=description_text,
-                        color=EmbedColor.INFO,
+                        title="🔎 ยังไม่เจอข่าวที่ตรงกัน",
+                        description="ลองเปลี่ยนคำค้นสั้น ๆ แล้วให้ผมหาให้อีกทีนะ",
+                        color=EmbedColor.WARNING,
                     )
-
                     await interaction.followup.send(embed=embed)
+                    return
+
+                # Build news description text
+                news_lines = []
+                for idx, item in enumerate(items, 1):
+                    title_el = item.find("title")
+                    link_el = item.find("link")
+                    pub_date_el = item.find("pubDate")
+
+                    title = title_el.text if title_el is not None else "หัวข้อข่าวไม่มีชื่อ"
+                    link = link_el.text if link_el is not None else ""
+                    pub_date = pub_date_el.text if pub_date_el is not None else ""
+
+                    short_date = format_rss_date(pub_date)
+
+                    if link:
+                        news_lines.append(f"{idx}. [{title}]({link}){short_date}")
+                    else:
+                        news_lines.append(f"{idx}. {title}{short_date}")
+
+                description_text = "\n\n".join(news_lines)
+
+                # Build beautiful embed
+                embed = make_embed(
+                    self.bot,
+                    "News",
+                    title=title_display,
+                    description=description_text,
+                    color=EmbedColor.INFO,
+                )
+
+                await interaction.followup.send(embed=embed)
 
         except Exception:
             logger.exception("Could not fetch Google News RSS")

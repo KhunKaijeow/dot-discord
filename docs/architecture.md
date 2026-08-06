@@ -53,6 +53,11 @@ circular import
 | Automation | `reminder.py`, `dashboard.py`, `morning_digest.py`, `x_notifier.py`, `deals_notifier.py` | งานตามเวลาและการแจ้งเตือนอัตโนมัติ |
 | Administration | `admin.py`, `health.py` | การตั้งค่าระดับ Server และข้อมูลสุขภาพของ bot |
 
+การเชื่อมต่อ HTTP ที่โค้ดเรียกโดยตรงผ่าน `services/http_client.py` โดย `JavisBot`
+สร้าง client หนึ่งครั้งก่อนโหลด Cog และปิดในช่วง shutdown ฝั่ง async ใช้
+`aiohttp.ClientSession` และ connection pool ร่วมกัน ส่วน Typhoon ใช้ pooled
+`requests.Session` แยกตาม worker thread ผ่าน client เดียวกัน เพื่อไม่ block Gateway
+
 `services/typhoon.py` เป็น implementation หลักและเรียก OpenTyphoon endpoint ด้วย
 โมเดล `typhoon-v2.5-30b-a3b-instruct` ส่วน `services/gemini.py` เป็น compatibility
 shim สำหรับ import เดิมเท่านั้น

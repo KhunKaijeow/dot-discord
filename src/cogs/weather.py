@@ -3,7 +3,6 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import aiohttp
 
 from ..ui import EmbedColor, make_embed, set_embed_author
 
@@ -68,97 +67,96 @@ class WeatherCog(commands.Cog):
     @app_commands.describe(location="ชื่อเมือง/พื้นที่ เช่น Bangkok, Chiang Mai, Tokyo, London")
     async def weather(self, interaction: discord.Interaction, location: str):
         await interaction.response.defer(thinking=True)
-        
+
         # Clean query URL
         url = f"https://wttr.in/{location}?format=j1&lang=th"
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        data = await response.json(content_type=None)
-                        
-                        # Extract current conditions
-                        current = data.get("current_condition", [{}])[0]
-                        temp_c = current.get("temp_C", "N/A")
-                        feels_like_c = current.get("FeelsLikeC", "N/A")
-                        humidity = current.get("humidity", "N/A")
-                        wind_speed = current.get("windspeedKmph", "N/A")
-                        wind_dir = current.get("winddir16Point", "N/A")
-                        uv_index = current.get("uvIndex", "N/A")
-                        weather_code = current.get("weatherCode", "113")
-                        
-                        # Get weather description in Thai (or fallback to English)
-                        weather_desc = "ไม่ทราบข้อมูลสภาพอากาศ"
-                        if current.get("lang_th"):
-                            weather_desc = current["lang_th"][0].get("value")
-                        elif current.get("weatherDesc"):
-                            weather_desc = current["weatherDesc"][0].get("value")
+            async with self.bot.http.get(url) as response:
+                if response.status == 200:
+                    data = await response.json(content_type=None)
 
-                        # Extract area information
-                        nearest_area = data.get("nearest_area", [{}])[0]
-                        area_name = nearest_area.get("areaName", [{}])[0].get("value", location)
-                        country = nearest_area.get("country", [{}])[0].get("value", "")
-                        region_name = nearest_area.get("region", [{}])[0].get("value", "")
-                        
-                        location_display = f"{area_name}"
-                        if region_name and region_name != area_name:
-                            location_display += f", {region_name}"
-                        if country:
-                            location_display += f" ({country})"
+                    # Extract current conditions
+                    current = data.get("current_condition", [{}])[0]
+                    temp_c = current.get("temp_C", "N/A")
+                    feels_like_c = current.get("FeelsLikeC", "N/A")
+                    humidity = current.get("humidity", "N/A")
+                    wind_speed = current.get("windspeedKmph", "N/A")
+                    wind_dir = current.get("winddir16Point", "N/A")
+                    uv_index = current.get("uvIndex", "N/A")
+                    weather_code = current.get("weatherCode", "113")
 
-                        # Extract daily forecast
-                        forecast = data.get("weather", [{}])[0]
-                        max_temp = forecast.get("maxtempC", "N/A")
-                        min_temp = forecast.get("mintempC", "N/A")
-                        
-                        astronomy = forecast.get("astronomy", [{}])[0]
-                        sunrise = astronomy.get("sunrise", "N/A")
-                        sunset = astronomy.get("sunset", "N/A")
+                    # Get weather description in Thai (or fallback to English)
+                    weather_desc = "ไม่ทราบข้อมูลสภาพอากาศ"
+                    if current.get("lang_th"):
+                        weather_desc = current["lang_th"][0].get("value")
+                    elif current.get("weatherDesc"):
+                        weather_desc = current["weatherDesc"][0].get("value")
 
-                        # Determine embed color based on temperature
-                        embed_color = 0x2ecc71  # Default Green (Mild)
-                        try:
-                            t = float(temp_c)
-                            if t >= 32:
-                                embed_color = 0xe74c3c  # Red (Hot)
-                            elif t >= 27:
-                                embed_color = 0xe67e22  # Orange (Warm)
-                            elif t < 20:
-                                embed_color = 0x3498db  # Blue (Cool/Cold)
-                        except (ValueError, TypeError):
-                            pass
+                    # Extract area information
+                    nearest_area = data.get("nearest_area", [{}])[0]
+                    area_name = nearest_area.get("areaName", [{}])[0].get("value", location)
+                    country = nearest_area.get("country", [{}])[0].get("value", "")
+                    region_name = nearest_area.get("region", [{}])[0].get("value", "")
 
-                        # Get emoji representation
-                        weather_emoji = get_weather_emoji(weather_code)
+                    location_display = f"{area_name}"
+                    if region_name and region_name != area_name:
+                        location_display += f", {region_name}"
+                    if country:
+                        location_display += f" ({country})"
 
-                        # Build Discord Embed
-                        embed = discord.Embed(
-                            title=f"{weather_emoji} อากาศที่ {location_display}",
-                            description=f"ตอนนี้ **{weather_desc.strip()}** • รู้สึกเหมือน `{feels_like_c}°C`",
-                            color=embed_color
-                        )
-                        set_embed_author(embed, self.bot, "Weather")
-                        
-                        embed.add_field(name="🌡️ อุณหภูมิปัจจุบัน", value=f"`{temp_c}°C`\n*(รู้สึกเหมือน `{feels_like_c}°C`)*", inline=True)
-                        embed.add_field(name="💧 ความชื้นอากาศ", value=f"`{humidity}%`", inline=True)
-                        embed.add_field(name="💨 ความเร็วลม", value=f"`{wind_speed} km/h`\n*(ทิศทาง `{wind_dir}`)*", inline=True)
+                    # Extract daily forecast
+                    forecast = data.get("weather", [{}])[0]
+                    max_temp = forecast.get("maxtempC", "N/A")
+                    min_temp = forecast.get("mintempC", "N/A")
 
-                        embed.add_field(name="📈 อุณหภูมิวันนี้", value=f"สูงสุด `{max_temp}°C`\nต่ำสุด `{min_temp}°C`", inline=True)
-                        embed.add_field(name="☀️ ดัชนี UV", value=f"ระดับ `{uv_index}`", inline=True)
-                        embed.add_field(name="🌅 พระอาทิตย์", value=f"ขึ้น `{sunrise}`\nตก `{sunset}`", inline=True)
+                    astronomy = forecast.get("astronomy", [{}])[0]
+                    sunrise = astronomy.get("sunrise", "N/A")
+                    sunset = astronomy.get("sunset", "N/A")
+
+                    # Determine embed color based on temperature
+                    embed_color = 0x2ecc71  # Default Green (Mild)
+                    try:
+                        t = float(temp_c)
+                        if t >= 32:
+                            embed_color = 0xe74c3c  # Red (Hot)
+                        elif t >= 27:
+                            embed_color = 0xe67e22  # Orange (Warm)
+                        elif t < 20:
+                            embed_color = 0x3498db  # Blue (Cool/Cold)
+                    except (ValueError, TypeError):
+                        pass
+
+                    # Get emoji representation
+                    weather_emoji = get_weather_emoji(weather_code)
+
+                    # Build Discord Embed
+                    embed = discord.Embed(
+                        title=f"{weather_emoji} อากาศที่ {location_display}",
+                        description=f"ตอนนี้ **{weather_desc.strip()}** • รู้สึกเหมือน `{feels_like_c}°C`",
+                        color=embed_color
+                    )
+                    set_embed_author(embed, self.bot, "Weather")
+
+                    embed.add_field(name="🌡️ อุณหภูมิปัจจุบัน", value=f"`{temp_c}°C`\n*(รู้สึกเหมือน `{feels_like_c}°C`)*", inline=True)
+                    embed.add_field(name="💧 ความชื้นอากาศ", value=f"`{humidity}%`", inline=True)
+                    embed.add_field(name="💨 ความเร็วลม", value=f"`{wind_speed} km/h`\n*(ทิศทาง `{wind_dir}`)*", inline=True)
+
+                    embed.add_field(name="📈 อุณหภูมิวันนี้", value=f"สูงสุด `{max_temp}°C`\nต่ำสุด `{min_temp}°C`", inline=True)
+                    embed.add_field(name="☀️ ดัชนี UV", value=f"ระดับ `{uv_index}`", inline=True)
+                    embed.add_field(name="🌅 พระอาทิตย์", value=f"ขึ้น `{sunrise}`\nตก `{sunset}`", inline=True)
 
 
-                        await interaction.followup.send(embed=embed)
-                    else:
-                        embed = make_embed(
-                            self.bot,
-                            "Weather",
-                            title="😅 ฟ้ายังไม่ส่งข่าวมา",
-                            description=f"บริการอากาศตอบกลับด้วยรหัส `{response.status}` รอสักครู่แล้วลองใหม่อีกทีนะ",
-                            color=EmbedColor.ERROR,
-                        )
-                        await interaction.followup.send(embed=embed)
+                    await interaction.followup.send(embed=embed)
+                else:
+                    embed = make_embed(
+                        self.bot,
+                        "Weather",
+                        title="😅 ฟ้ายังไม่ส่งข่าวมา",
+                        description=f"บริการอากาศตอบกลับด้วยรหัส `{response.status}` รอสักครู่แล้วลองใหม่อีกทีนะ",
+                        color=EmbedColor.ERROR,
+                    )
+                    await interaction.followup.send(embed=embed)
 
         except Exception:
             embed = make_embed(

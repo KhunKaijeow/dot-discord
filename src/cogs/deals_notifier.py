@@ -66,13 +66,12 @@ class DealsNotifierCog(commands.Cog):
 
     async def fetch_active_giveaways(self) -> list[dict]:
         try:
-            async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
-                async with session.get(API_URL) as response:
-                    if response.status != 200:
-                        logger.warning("GamerPower returned HTTP %s", response.status)
-                        return []
-                    payload = await response.json()
-                    return payload if isinstance(payload, list) else []
+            async with self.bot.http.get(API_URL, timeout=REQUEST_TIMEOUT) as response:
+                if response.status != 200:
+                    logger.warning("GamerPower returned HTTP %s", response.status)
+                    return []
+                payload = await response.json()
+                return payload if isinstance(payload, list) else []
         except (aiohttp.ClientError, TimeoutError, ValueError):
             logger.exception("Could not fetch GamerPower giveaways")
             return []

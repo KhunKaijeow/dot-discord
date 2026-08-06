@@ -11,7 +11,7 @@ from ..ui import EmbedColor, make_embed
 class TranslatorCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.translation_service = TranslationService()
+        self.translation_service = TranslationService(bot.http)
 
     @app_commands.command(
         name="translate",

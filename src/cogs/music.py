@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlparse, parse_qs
 
 from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+from ..services.http_client import HttpClient
 from ..services.music_queue import MusicQueue, QueueFullError
 from ..ui import EmbedColor, make_embed, set_embed_author
 
@@ -113,33 +114,39 @@ def _extract_youtube_info(query: str, *, flat: bool) -> dict[str, Any]:
         return _first_entry(ytdl.extract_info(query, download=False))
 
 
-async def _spotify_search_text(url: str) -> str:
+async def _spotify_search_text(url: str, http_client: HttpClient) -> str:
     timeout = aiohttp.ClientTimeout(total=15)
     headers = {"User-Agent": "JavisDiscordBot/1.0"}
 
     try:
-        async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-            if urlparse(url).netloc.lower() == "spotify.link":
-                async with session.get(url, allow_redirects=True) as response:
-                    response.raise_for_status()
-                    url = str(response.url)
-
-            parsed = urlparse(url)
-            path_parts = [part for part in parsed.path.split("/") if part]
-            if parsed.netloc.lower() != "open.spotify.com":
-                raise UnsupportedSpotifyUrl("ลิงก์ Spotify ไม่ถูกต้อง")
-            if len(path_parts) < 2 or path_parts[-2] != "track":
-                raise UnsupportedSpotifyUrl(
-                    "ตอนนี้รองรับลิงก์ Spotify แบบเพลงเดี่ยวเท่านั้น"
-                )
-
-            clean_url = f"https://open.spotify.com/track/{path_parts[-1]}"
-            async with session.get(
-                SPOTIFY_OEMBED_URL,
-                params={"url": clean_url},
+        if urlparse(url).netloc.lower() == "spotify.link":
+            async with http_client.get(
+                url,
+                allow_redirects=True,
+                timeout=timeout,
+                headers=headers,
             ) as response:
                 response.raise_for_status()
-                payload = await response.json(content_type=None)
+                url = str(response.url)
+
+        parsed = urlparse(url)
+        path_parts = [part for part in parsed.path.split("/") if part]
+        if parsed.netloc.lower() != "open.spotify.com":
+            raise UnsupportedSpotifyUrl("ลิงก์ Spotify ไม่ถูกต้อง")
+        if len(path_parts) < 2 or path_parts[-2] != "track":
+            raise UnsupportedSpotifyUrl(
+                "ตอนนี้รองรับลิงก์ Spotify แบบเพลงเดี่ยวเท่านั้น"
+            )
+
+        clean_url = f"https://open.spotify.com/track/{path_parts[-1]}"
+        async with http_client.get(
+            SPOTIFY_OEMBED_URL,
+            params={"url": clean_url},
+            timeout=timeout,
+            headers=headers,
+        ) as response:
+            response.raise_for_status()
+            payload = await response.json(content_type=None)
     except UnsupportedSpotifyUrl:
         raise
     except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as error:
@@ -188,7 +195,11 @@ async def _resolve_youtube_playlist(url: str, requester: discord.abc.User) -> li
     return tracks
 
 
-async def _resolve_spotify_playlist(playlist_id: str, requester: discord.abc.User) -> list[Track]:
+async def _resolve_spotify_playlist(
+    playlist_id: str,
+    requester: discord.abc.User,
+    http_client: HttpClient,
+) -> list[Track]:
     if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
         raise MusicError(
             "บอทไม่ได้ตั้งค่าตัวแปร `SPOTIFY_CLIENT_ID` และ `SPOTIFY_CLIENT_SECRET` ในไฟล์ `.env` "
@@ -205,25 +216,34 @@ async def _resolve_spotify_playlist(playlist_id: str, requester: discord.abc.Use
     
     timeout = aiohttp.ClientTimeout(total=10)
     try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            # 1. Exchange client credentials for an access token
-            async with session.post(token_url, data=auth_data, headers=auth_headers) as token_resp:
-                if token_resp.status != 200:
-                    raise MusicError("การขอสิทธิ์เข้าถึง Spotify API (Token) ล้มเหลว")
-                token_data = await token_resp.json()
-                access_token = token_data.get("access_token")
+        # 1. Exchange client credentials for an access token
+        async with http_client.post(
+            token_url,
+            data=auth_data,
+            headers=auth_headers,
+            timeout=timeout,
+        ) as token_resp:
+            if token_resp.status != 200:
+                raise MusicError("การขอสิทธิ์เข้าถึง Spotify API (Token) ล้มเหลว")
+            token_data = await token_resp.json()
+            access_token = token_data.get("access_token")
                 
-            # 2. Get playlist tracks (up to 100 tracks)
-            tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
-            playlist_headers = {"Authorization": f"Bearer {access_token}"}
-            params = {
-                "fields": "items(track(name,artists(name)))",
-                "limit": 100
-            }
-            async with session.get(tracks_url, headers=playlist_headers, params=params) as tracks_resp:
-                if tracks_resp.status != 200:
-                    raise MusicError("อ่าน Spotify Playlist ไม่สำเร็จ ลองใหม่อีกทีนะ")
-                tracks_data = await tracks_resp.json()
+        # 2. Get playlist tracks (up to 100 tracks)
+        tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+        playlist_headers = {"Authorization": f"Bearer {access_token}"}
+        params = {
+            "fields": "items(track(name,artists(name)))",
+            "limit": 100
+        }
+        async with http_client.get(
+            tracks_url,
+            headers=playlist_headers,
+            params=params,
+            timeout=timeout,
+        ) as tracks_resp:
+            if tracks_resp.status != 200:
+                raise MusicError("อ่าน Spotify Playlist ไม่สำเร็จ ลองใหม่อีกทีนะ")
+            tracks_data = await tracks_resp.json()
     except MusicError:
         raise
     except Exception as e:
@@ -257,7 +277,11 @@ async def _resolve_spotify_playlist(playlist_id: str, requester: discord.abc.Use
     return tracks
 
 
-async def resolve_tracks(query: str, requester: discord.abc.User) -> list[Track]:
+async def resolve_tracks(
+    query: str,
+    requester: discord.abc.User,
+    http_client: HttpClient,
+) -> list[Track]:
     """Resolve text, YouTube URL (video/playlist), or Spotify URL (track/playlist) to a list of Tracks."""
     query = query.strip()
     if not query:
@@ -274,10 +298,13 @@ async def resolve_tracks(query: str, requester: discord.abc.User) -> list[Track]
         if host == "spotify.link":
             timeout = aiohttp.ClientTimeout(total=10)
             try:
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.get(query, allow_redirects=True) as response:
-                        response.raise_for_status()
-                        clean_url = str(response.url)
+                async with http_client.get(
+                    query,
+                    allow_redirects=True,
+                    timeout=timeout,
+                ) as response:
+                    response.raise_for_status()
+                    clean_url = str(response.url)
             except Exception as e:
                 raise MusicError("เปิดลิงก์ย่อ Spotify ไม่สำเร็จ ลองใช้ลิงก์เต็มแทนนะ") from e
                 
@@ -287,9 +314,13 @@ async def resolve_tracks(query: str, requester: discord.abc.User) -> list[Track]
         path_parts = [part for part in parsed.path.split("/") if part]
         if len(path_parts) >= 2 and path_parts[-2] == "playlist":
             playlist_id = path_parts[-1]
-            return await _resolve_spotify_playlist(playlist_id, requester)
+            return await _resolve_spotify_playlist(
+                playlist_id,
+                requester,
+                http_client,
+            )
         elif len(path_parts) >= 2 and path_parts[-2] == "track":
-            search_text = await _spotify_search_text(clean_url)
+            search_text = await _spotify_search_text(clean_url, http_client)
             youtube_query = f"ytsearch1:{search_text}"
             requested_via = "Spotify → YouTube"
         else:
@@ -692,7 +723,7 @@ class MusicCog(commands.Cog):
             return
 
         try:
-            tracks = await resolve_tracks(query, interaction.user)
+            tracks = await resolve_tracks(query, interaction.user, self.bot.http)
         except MusicError as error:
             await interaction.followup.send(f"😅 {error}", ephemeral=True)
             return

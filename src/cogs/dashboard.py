@@ -95,11 +95,13 @@ class DashboardCog(commands.Cog):
     async def fetch_top_news(self) -> list[tuple[str, str]]:
         news: list[tuple[str, str]] = []
         try:
-            async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
-                async with session.get(NEWS_FEED_URL) as response:
-                    if response.status != 200:
-                        return news
-                    root = ET.fromstring(await response.text())
+            async with self.bot.http.get(
+                NEWS_FEED_URL,
+                timeout=REQUEST_TIMEOUT,
+            ) as response:
+                if response.status != 200:
+                    return news
+                root = ET.fromstring(await response.text())
             for item in root.findall(".//item")[:3]:
                 title = item.findtext("title")
                 link = item.findtext("link")

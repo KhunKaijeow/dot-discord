@@ -11,6 +11,7 @@ from typing import Any
 import requests
 
 from ..config import TYPHOON_API_KEY
+from .http_client import HttpClient
 
 
 logger = logging.getLogger("javis.typhoon")
@@ -54,10 +55,15 @@ class TyphoonChat:
 class TyphoonService:
     """Synchronous OpenTyphoon client used from Discord worker threads."""
 
-    def __init__(self, api_key: str | None = TYPHOON_API_KEY):
+    def __init__(
+        self,
+        api_key: str | None = TYPHOON_API_KEY,
+        http_client: HttpClient | None = None,
+    ):
         if not api_key:
             raise ValueError("TYPHOON_API_KEY is required")
         self.api_key = api_key
+        self.http = http_client or HttpClient()
         self.chat_sessions: dict[int, TyphoonChat] = {}
 
     def get_or_create_chat(self, channel_id: int) -> TyphoonChat:
@@ -94,7 +100,8 @@ class TyphoonService:
         last_error: Exception | None = None
         for attempt in range(1, max_retries + 1):
             try:
-                response = requests.post(
+                response = self.http.request_sync(
+                    "POST",
                     TYPHOON_API_URL,
                     json=payload,
                     headers=headers,

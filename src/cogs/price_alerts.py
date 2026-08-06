@@ -42,7 +42,11 @@ class PriceAlertsCog(commands.Cog):
             await interaction.response.send_message("ราคาเป้าหมายไม่ถูกต้อง", ephemeral=True)
             return
         try:
-            normalized, current = await get_market_price(asset_type, symbol)
+            normalized, current = await get_market_price(
+                self.bot.http,
+                asset_type,
+                symbol,
+            )
             settings = await asyncio.to_thread(self.database.get_settings, interaction.guild.id)
             delivery_channel_id = settings["alert_channel_id"] or interaction.channel_id
             alert_id = await asyncio.to_thread(
@@ -102,7 +106,7 @@ class PriceAlertsCog(commands.Cog):
             key = (row["asset_type"], row["symbol"])
             if key not in prices:
                 try:
-                    _, prices[key] = await get_market_price(*key)
+                    _, prices[key] = await get_market_price(self.bot.http, *key)
                 except Exception:
                     logger.warning("Price lookup failed for %s", key)
                     prices[key] = None
