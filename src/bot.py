@@ -67,7 +67,7 @@ async def on_ready():
         print(f"Failed to sync commands: {e}")
     print(f"Logged in as {bot.user.name} ({bot.user.id})")
 
-@bot.tree.command(name="ask", description="ถามคำถามหรือคุยต่อเนื่องกับ Gemini AI")
+@bot.tree.command(name="ask", description="ถามคำถามหรือคุยต่อเนื่องกับ Typhoon AI")
 @app_commands.describe(prompt="คำถามของคุณ")
 @app_commands.checks.cooldown(5, 60.0, key=lambda interaction: interaction.user.id)
 async def ask(interaction: discord.Interaction, prompt: str):
@@ -83,8 +83,8 @@ async def ask(interaction: discord.Interaction, prompt: str):
         response = await asyncio.to_thread(chat.send_message, prompt)
         answer = response.text
     except Exception as e:
-        print(f"Gemini request failed: {e}")
-        answer = "ขอโทษนะ ตอนนี้ผมคุยกับ Gemini ไม่สำเร็จ ลองถามใหม่อีกครั้งในอีกสักครู่นะครับ 🙏"
+        print(f"Typhoon request failed: {e}")
+        answer = "ขอโทษนะ ตอนนี้ผมคุยกับ Typhoon ไม่สำเร็จ ลองถามใหม่อีกครั้งในอีกสักครู่นะครับ 🙏"
 
     embed = discord.Embed(
         color=0x1a73e8  # Premium Google Blue

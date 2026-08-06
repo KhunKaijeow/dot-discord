@@ -1,36 +1,78 @@
-"""AI image generation slash commands."""
+"""AI image generation slash commands using Together AI's FLUX.1 model."""
 
 import discord
 from discord.ext import commands
 from discord import app_commands
-import urllib.parse
-import random
+import io
+import aiohttp
+import logging
+from src.config import TOGETHER_API_KEY
+
+logger = logging.getLogger(__name__)
+
+async def generate_flux_image(prompt: str, api_key: str) -> tuple[discord.Embed, discord.File]:
+    url = "https://api.together.xyz/v1/images/generations"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "black-forest-labs/FLUX.1-schnell-Free",
+        "prompt": prompt,
+        "steps": 4,
+        "n": 1,
+        "height": 1024,
+        "width": 1024
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload, headers=headers) as response:
+            if response.status != 200:
+                resp_text = await response.text()
+                raise ValueError(f"Together AI API returned error: HTTP {response.status} - {resp_text}")
+            
+            data = await response.json()
+            image_data_list = data.get("data", [])
+            if not image_data_list:
+                raise ValueError(f"No image data returned: {data}")
+            
+            image_url = image_data_list[0].get("url")
+            if not image_url:
+                raise ValueError(f"No image URL in response data: {data}")
+            
+            # Download the image to a bytes buffer
+            async with session.get(image_url) as img_response:
+                if img_response.status != 200:
+                    raise ValueError(f"Failed to download generated image from {image_url}")
+                img_bytes = await img_response.read()
+                
+    img_buf = io.BytesIO(img_bytes)
+    file = discord.File(img_buf, filename="flux_draw.png")
+    
+    embed = discord.Embed(
+        title=f"🎨 ภาพ AI: {prompt}",
+        color=discord.Color.random()
+    )
+    embed.set_image(url="attachment://flux_draw.png")
+    return embed, file
 
 class DrawControlView(discord.ui.View):
-    def __init__(self, prompt: str):
+    def __init__(self, prompt: str, api_key: str):
         # View timeout is 5 minutes (300s) to free resources, but can be interacted with multiple times
         super().__init__(timeout=300)
         self.prompt = prompt
+        self.api_key = api_key
 
     @discord.ui.button(label="สร้างใหม่ (Regenerate)", style=discord.ButtonStyle.primary, emoji="🔄")
     async def regenerate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(thinking=True)
-        
-        # Create a new random seed to generate a different variant of the image
-        new_seed = random.randint(1, 9999999)
-        encoded_prompt = urllib.parse.quote(self.prompt)
-        new_image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={new_seed}"
-
-        # Re-build embed
-        embed = discord.Embed(
-            title=f"🎨 ภาพ AI: {self.prompt}",
-            description=f"**วาดให้:** {interaction.user.mention}\n*ลองสร้างเวอร์ชันใหม่ให้แล้ว (Seed: `{new_seed}`)*",
-            color=discord.Color.random()
-        )
-        embed.set_image(url=new_image_url)
-
-        # Edit original message with new image
-        await interaction.followup.edit_message(message_id=interaction.message.id, embed=embed, view=self)
+        try:
+            embed, file = await generate_flux_image(self.prompt, self.api_key)
+            embed.description = f"**วาดให้:** {interaction.user.mention}\n*ลองสร้างเวอร์ชันใหม่ให้แล้ว ✨*"
+            await interaction.followup.edit_message(message_id=interaction.message.id, embed=embed, view=self, attachments=[file])
+        except Exception as e:
+            logger.exception("Error regenerating image")
+            await interaction.followup.send(f"❌ ขออภัย ไม่สามารถเจนรูปภาพใหม่ได้ในขณะนี้: {e}", ephemeral=True)
 
 class DrawCog(commands.Cog):
     def __init__(self, bot):
@@ -40,26 +82,22 @@ class DrawCog(commands.Cog):
     @app_commands.describe(prompt="รายละเอียดภาพที่ต้องการวาด (ภาษาอังกฤษจะประมวลผลได้ดีที่สุด)")
     @app_commands.checks.cooldown(3, 60.0, key=lambda interaction: interaction.user.id)
     async def draw(self, interaction: discord.Interaction, prompt: str):
-        # We don't defer because generating the URL is instant. The client (Discord) will load the image!
-        # But sending an instant response is even better as it renders immediately while loading.
-        
         prompt = prompt.strip()
         if not 1 <= len(prompt) <= 500:
             await interaction.response.send_message("Prompt ต้องมีความยาว 1–500 ตัวอักษร", ephemeral=True)
             return
-        encoded_prompt = urllib.parse.quote(prompt)
-        seed = random.randint(1, 9999999)
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={seed}"
+            
+        await interaction.response.defer(thinking=True)
 
-        embed = discord.Embed(
-            title=f"🎨 ภาพ AI: {prompt}",
-            description=f"**วาดให้:** {interaction.user.mention}\n*กำลังเนรมิตภาพให้อยู่นะ 🎨*",
-            color=discord.Color.random()
-        )
-        embed.set_image(url=image_url)
-
-        view = DrawControlView(prompt)
-        await interaction.response.send_message(embed=embed, view=view)
+        try:
+            embed, file = await generate_flux_image(prompt, TOGETHER_API_KEY)
+            embed.description = f"**วาดให้:** {interaction.user.mention}\n*เนรมิตภาพเสร็จแล้วด้วย FLUX.1 🎨*"
+            
+            view = DrawControlView(prompt, TOGETHER_API_KEY)
+            await interaction.followup.send(embed=embed, file=file, view=view)
+        except Exception as e:
+            logger.exception("Error generating image")
+            await interaction.followup.send(f"❌ ขออภัย เกิดข้อผิดพลาดในการวาดภาพ: {e}")
 
 async def setup(bot):
     await bot.add_cog(DrawCog(bot))
