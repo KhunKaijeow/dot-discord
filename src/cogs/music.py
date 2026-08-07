@@ -13,7 +13,7 @@ import shutil
 from typing import Any
 from urllib.parse import urlparse, parse_qs
 
-from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, YOUTUBE_PROXY
+from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 from ..services.http_client import HttpClient
 from ..services.music_queue import MusicQueue, QueueFullError
 from ..ui import EmbedColor, make_embed, make_notice_embed, set_embed_author
@@ -113,10 +113,6 @@ YTDL_OPTIONS = {
     "fragment_retries": 3,
     "js_runtimes": _javascript_runtimes(),
 }
-if YOUTUBE_PROXY and YOUTUBE_PROXY.strip():
-    # Keep proxy credentials in Railway/.env and pass them directly to yt-dlp.
-    # Do not log this value because proxy URLs commonly contain a password.
-    YTDL_OPTIONS["proxy"] = YOUTUBE_PROXY.strip()
 
 
 async def defer_interaction(interaction: discord.Interaction) -> bool:
@@ -178,7 +174,6 @@ def _playback_error(error: Exception) -> MusicError:
         "sign in to confirm",
         "not a bot",
         "http error 403",
-        "http error 407",
         "http error 429",
         "too many requests",
         "failed to resolve",
@@ -186,8 +181,6 @@ def _playback_error(error: Exception) -> MusicError:
         "connection refused",
         "connection reset",
         "network is unreachable",
-        "proxy authentication",
-        "proxy error",
         "certificate verify failed",
         "timed out",
         "timeout",
@@ -202,7 +195,7 @@ def _playback_error(error: Exception) -> MusicError:
         return YouTubeProviderError(
             "เชื่อมต่อ YouTube เพื่อเตรียมเสียงไม่สำเร็จ "
             "ระบบหยุดคิวไว้เพื่อไม่ให้แจ้ง error ซ้ำ "
-            "ลองใหม่ภายหลังหรือตรวจ `YOUTUBE_PROXY`"
+            "กรุณารอสักครู่แล้วลองใหม่หรือตรวจ Railway logs"
         )
     return MusicError("เตรียมเสียงจาก YouTube ไม่สำเร็จสำหรับเพลงนี้")
 
