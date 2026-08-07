@@ -187,6 +187,7 @@ TYPHOON_API_KEY=your_typhoon_api_key
 TOGETHER_API_KEY=your_together_api_key
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+YOUTUBE_COOKIES_BASE64=base64_encoded_netscape_cookie_file
 VALORANT_API_KEY=your_valorant_api_key
 PROKERALA_CLIENT_ID=your_prokerala_client_id
 PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
@@ -199,11 +200,30 @@ PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
 | `TOGETHER_API_KEY` | สำหรับ /draw | [Together AI](https://together.ai/) |
 | `SPOTIFY_CLIENT_ID` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
 | `SPOTIFY_CLIENT_SECRET` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
+| `YOUTUBE_COOKIES_BASE64` | เมื่อ Hosting ถูก YouTube ปฏิเสธ | Cookie file รูปแบบ Netscape ที่เข้ารหัส Base64 |
 | `VALORANT_API_KEY` | ไม่ | [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) |
 | `PROKERALA_CLIENT_ID` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
 | `PROKERALA_CLIENT_SECRET` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
 
 ไฟล์ `.env` ถูก ignore ไว้แล้ว ห้าม commit token หรือ API key ขึ้น repository
+
+### แก้ YouTube `Sign in to confirm you're not a bot` บน Hosting
+
+หาก Railway logs แสดง `Sign in to confirm you're not a bot` หรือ YouTube ตอบ
+`HTTP 403` ให้ export เฉพาะ cookies ของ `youtube.com` เป็นไฟล์ Netscape
+`youtube-cookies.txt` จาก session แยก แล้วแปลงเป็น Base64 ด้วยคำสั่งนี้บนเครื่องส่วนตัว:
+
+```bash
+python3 -c "import base64,pathlib; print(base64.b64encode(pathlib.Path('youtube-cookies.txt').read_bytes()).decode())"
+```
+
+คัดลอกผลลัพธ์ทั้งหมดไปใส่ Railway Variable ชื่อ
+`YOUTUBE_COOKIES_BASE64` แล้ว Redeploy จากนั้น `/setup-check` ต้องแสดง
+`YouTube Cookies: โหลดจาก Railway Secret แล้ว`
+
+ค่า Base64 ยังคงเป็นข้อมูลลับ ห้ามส่งใน Discord, log หรือ commit ลง Git
+แนะนำให้ใช้บัญชี YouTube แยก เพราะ YouTube อาจจำกัดหรือระงับบัญชีที่ใช้กับ
+เครื่องมืออัตโนมัติ และ cookies อาจหมดอายุจนต้องสร้างค่าใหม่
 
 คำสั่ง `/horoscope` ใช้ Advanced Daily Prediction แบบครบ 4 หมวด ซึ่งใช้
 1,000 Prokerala credits ต่อราศีต่อวัน บอทจะ cache ผลไว้จนเปลี่ยนวันเพื่อลด

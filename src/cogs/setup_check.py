@@ -21,7 +21,13 @@ from ..config import (
 )
 from ..services.database_migrations import LATEST_SCHEMA_VERSION
 from ..ui import EmbedColor, make_embed
-from .music import EJS_AVAILABLE, FFMPEG_EXECUTABLE, YTDL_OPTIONS
+from .music import (
+    EJS_AVAILABLE,
+    FFMPEG_EXECUTABLE,
+    YOUTUBE_COOKIE_ERROR,
+    YOUTUBE_COOKIE_FILE,
+    YTDL_OPTIONS,
+)
 
 
 logger = logging.getLogger("javis.setup_check")
@@ -205,6 +211,20 @@ class SetupCheckCog(commands.Cog):
                 "yt-dlp EJS",
                 EJS_AVAILABLE,
                 "พร้อมแก้ YouTube challenge" if EJS_AVAILABLE else "ไม่พบ yt-dlp-ejs",
+                required=False,
+            ),
+            CheckItem(
+                "YouTube Cookies",
+                bool(YOUTUBE_COOKIE_FILE),
+                (
+                    "โหลดจาก Railway Secret แล้ว"
+                    if YOUTUBE_COOKIE_FILE
+                    else (
+                        "YOUTUBE_COOKIES_BASE64 ไม่ถูกต้อง"
+                        if YOUTUBE_COOKIE_ERROR
+                        else "ยังไม่ได้ตั้งค่า (YouTube อาจปฏิเสธ IP ของ Hosting)"
+                    )
+                ),
                 required=False,
             ),
         ]

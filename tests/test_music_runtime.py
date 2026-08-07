@@ -1,4 +1,6 @@
 import unittest
+import base64
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
@@ -14,6 +16,7 @@ from src.cogs.music import (
     YTDL_OPTIONS,
     _extract_youtube_info,
     _playback_error,
+    _prepare_youtube_cookie_file,
     _resolve_playback_data,
     _resolve_spotify_playlist,
     _resolve_single_youtube,
@@ -128,7 +131,29 @@ class MusicRuntimeTests(unittest.IsolatedAsyncioTestCase):
         classified = _playback_error(error)
 
         self.assertIsInstance(classified, YouTubeProviderError)
-        self.assertIn("Railway logs", str(classified))
+        self.assertIn("YOUTUBE_COOKIES_BASE64", str(classified))
+
+    def test_youtube_cookies_are_decoded_to_private_netscape_file(self):
+        content = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tvalue\n"
+        encoded = base64.b64encode(content.encode()).decode()
+
+        path, error = _prepare_youtube_cookie_file(encoded)
+
+        try:
+            self.assertIsNone(error)
+            self.assertIsNotNone(path)
+            with open(path, encoding="utf-8") as cookie_file:
+                self.assertEqual(cookie_file.read(), content)
+            self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+        finally:
+            if path:
+                os.unlink(path)
+
+    def test_youtube_cookies_reject_invalid_secret(self):
+        path, error = _prepare_youtube_cookie_file("not-base64")
+
+        self.assertIsNone(path)
+        self.assertIsNotNone(error)
 
     async def test_spotify_playlist_uses_basic_auth_and_follows_pages(self):
         http_client = MagicMock()

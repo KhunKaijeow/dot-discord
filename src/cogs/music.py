@@ -3,17 +3,25 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 from dataclasses import dataclass
 from datetime import datetime
 import importlib.util
 import logging
+import os
 import re
 import shlex
 import shutil
+import tempfile
 from typing import Any
 from urllib.parse import urlparse, parse_qs
 
-from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+from ..config import (
+    SPOTIFY_CLIENT_ID,
+    SPOTIFY_CLIENT_SECRET,
+    YOUTUBE_COOKIES_BASE64,
+)
 from ..services.http_client import HttpClient
 from ..services.music_queue import MusicQueue, QueueFullError
 from ..ui import EmbedColor, make_embed, make_notice_embed, set_embed_author
@@ -99,6 +107,37 @@ def _javascript_runtimes() -> dict[str, dict[str, str]]:
     return {}
 
 
+def _prepare_youtube_cookie_file(
+    encoded_cookies: str | None,
+) -> tuple[str | None, str | None]:
+    """Decode a Railway secret into a private temporary Netscape cookie file."""
+    if not encoded_cookies or not encoded_cookies.strip():
+        return None, None
+    try:
+        payload = base64.b64decode(encoded_cookies.strip(), validate=True)
+        if not payload or len(payload) > 1_000_000:
+            raise ValueError("cookie file is empty or too large")
+        text = payload.decode("utf-8").replace("\r\n", "\n")
+        first_line = text.splitlines()[0] if text.splitlines() else ""
+        if first_line not in {"# HTTP Cookie File", "# Netscape HTTP Cookie File"}:
+            raise ValueError("cookie file is not in Netscape format")
+    except (binascii.Error, UnicodeDecodeError, ValueError) as error:
+        return None, str(error)
+
+    descriptor, path = tempfile.mkstemp(prefix="javis-youtube-", suffix=".txt")
+    try:
+        os.fchmod(descriptor, 0o600)
+        os.write(descriptor, text.encode("utf-8"))
+    finally:
+        os.close(descriptor)
+    return path, None
+
+
+YOUTUBE_COOKIE_FILE, YOUTUBE_COOKIE_ERROR = _prepare_youtube_cookie_file(
+    YOUTUBE_COOKIES_BASE64
+)
+
+
 YTDL_OPTIONS = {
     "format": "bestaudio[protocol^=m3u8]/bestaudio[protocol^=http]/bestaudio/best",
     "noplaylist": True,
@@ -113,6 +152,8 @@ YTDL_OPTIONS = {
     "fragment_retries": 3,
     "js_runtimes": _javascript_runtimes(),
 }
+if YOUTUBE_COOKIE_FILE:
+    YTDL_OPTIONS["cookiefile"] = YOUTUBE_COOKIE_FILE
 
 
 async def defer_interaction(interaction: discord.Interaction) -> bool:
@@ -193,9 +234,9 @@ def _playback_error(error: Exception) -> MusicError:
         marker in message for marker in provider_markers
     ):
         return YouTubeProviderError(
-            "เชื่อมต่อ YouTube เพื่อเตรียมเสียงไม่สำเร็จ "
+            "YouTube ปฏิเสธคำขอจากเครื่องที่รันบอท "
             "ระบบหยุดคิวไว้เพื่อไม่ให้แจ้ง error ซ้ำ "
-            "กรุณารอสักครู่แล้วลองใหม่หรือตรวจ Railway logs"
+            "กรุณาตั้ง `YOUTUBE_COOKIES_BASE64` ใน Railway แล้ว Redeploy"
         )
     return MusicError("เตรียมเสียงจาก YouTube ไม่สำเร็จสำหรับเพลงนี้")
 
