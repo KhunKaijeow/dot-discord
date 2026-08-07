@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime
 import importlib.util
 import logging
 import re
@@ -27,6 +28,7 @@ import yt_dlp
 logger = logging.getLogger(__name__)
 
 MAX_QUEUE_SIZE = 200
+MAX_CONSECUTIVE_START_FAILURES = 3
 FFMPEG_EXECUTABLE = shutil.which("ffmpeg")
 SPOTIFY_OEMBED_URL = "https://open.spotify.com/oembed"
 SPOTIFY_HOSTS = {"open.spotify.com", "spotify.link"}
@@ -46,6 +48,10 @@ SPOTIFY_PLAYLIST_PAGE_SIZE = 50
 
 class MusicError(Exception):
     """Base error shown to users when a track cannot be prepared."""
+
+
+class YouTubeProviderError(MusicError):
+    """YouTube/network failure that would affect every queued track."""
 
 
 class UnsupportedSpotifyUrl(MusicError):
@@ -142,6 +148,65 @@ def _first_entry(data: dict[str, Any] | None) -> dict[str, Any]:
     return entry
 
 
+def _youtube_watch_url(data: dict[str, Any]) -> str:
+    """Return a stable YouTube URL from either search or video metadata."""
+    video_id = str(data.get("id") or "").strip()
+    if video_id:
+        return YOUTUBE_WATCH_URL.format(video_id=video_id)
+    webpage_url = str(data.get("webpage_url") or "").strip()
+    if webpage_url:
+        return webpage_url
+    raise MusicError("YouTube ไม่ส่งลิงก์วิดีโอกลับมา")
+
+
+def _exception_messages(error: BaseException) -> str:
+    """Collect chained exception text without exposing it to Discord users."""
+    messages = []
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        messages.append(str(current))
+        current = current.__cause__ or current.__context__
+    return " ".join(messages).lower()
+
+
+def _playback_error(error: Exception) -> MusicError:
+    """Classify provider-wide failures so a playlist does not spam errors."""
+    message = _exception_messages(error)
+    provider_markers = (
+        "sign in to confirm",
+        "not a bot",
+        "http error 403",
+        "http error 407",
+        "http error 429",
+        "too many requests",
+        "failed to resolve",
+        "name resolution",
+        "connection refused",
+        "connection reset",
+        "network is unreachable",
+        "proxy authentication",
+        "proxy error",
+        "certificate verify failed",
+        "timed out",
+        "timeout",
+        "n challenge",
+        "javascript runtime",
+        "no video formats",
+        "requested format is not available",
+    )
+    if isinstance(error, (OSError, asyncio.TimeoutError)) or any(
+        marker in message for marker in provider_markers
+    ):
+        return YouTubeProviderError(
+            "เชื่อมต่อ YouTube เพื่อเตรียมเสียงไม่สำเร็จ "
+            "ระบบหยุดคิวไว้เพื่อไม่ให้แจ้ง error ซ้ำ "
+            "ลองใหม่ภายหลังหรือตรวจ `YOUTUBE_PROXY`"
+        )
+    return MusicError("เตรียมเสียงจาก YouTube ไม่สำเร็จสำหรับเพลงนี้")
+
+
 def _extract_youtube_info(query: str, *, flat: bool) -> dict[str, Any]:
     options = dict(YTDL_OPTIONS)
     if flat:
@@ -235,8 +300,31 @@ async def _resolve_single_youtube(
     raise MusicError("ค้นหาเพลงบน YouTube ไม่สำเร็จ") from last_error
 
 
+async def _resolve_playback_data(playback_query: str) -> dict[str, Any]:
+    """Resolve a search first, then extract audio from a stable video URL.
+
+    Keeping these as separate yt-dlp operations avoids treating a deferred
+    Spotify playlist search as a nested downloadable playlist.
+    """
+    target = playback_query
+    if playback_query.startswith("ytsearch"):
+        search_data = await asyncio.to_thread(
+            _extract_youtube_info,
+            playback_query,
+            flat=True,
+        )
+        target = _youtube_watch_url(search_data)
+    return await asyncio.to_thread(
+        _extract_youtube_info,
+        target,
+        flat=False,
+    )
+
+
 def playback_error_message(track: Track, error: Exception) -> str:
     """Add the original music provider to playback errors."""
+    if isinstance(error, YouTubeProviderError):
+        return str(error)
     if track.is_spotify:
         return (
             "อ่านรายการจาก Spotify สำเร็จ แต่เตรียมเสียงจาก YouTube ไม่สำเร็จ "
@@ -341,7 +429,7 @@ async def _resolve_spotify_playlist(
         playlist_headers = {"Authorization": f"Bearer {access_token}"}
         params: dict[str, Any] | None = {
             "fields": (
-                "items(item(name,artists(name),external_urls(spotify),is_local)),next"
+                "items(is_local,item(name,artists(name),external_urls(spotify),type)),next"
             ),
             "limit": SPOTIFY_PLAYLIST_PAGE_SIZE,
         }
@@ -353,8 +441,19 @@ async def _resolve_spotify_playlist(
                 params=params,
                 timeout=timeout,
             ) as tracks_resp:
+                if tracks_resp.status == 401:
+                    raise MusicError("Spotify ปฏิเสธ credentials กรุณาตรวจ Client ID/Secret")
+                if tracks_resp.status == 403:
+                    raise MusicError(
+                        "Spotify ไม่อนุญาตให้อ่าน Playlist นี้ "
+                        "(API รุ่นปัจจุบันอาจจำกัดเฉพาะ Playlist ที่บัญชีเป็นเจ้าของหรือผู้ร่วมแก้ไข)"
+                    )
+                if tracks_resp.status == 429:
+                    raise MusicError("Spotify จำกัดจำนวนคำขอ กรุณารอสักครู่แล้วลองใหม่")
                 if tracks_resp.status != 200:
-                    raise MusicError("อ่าน Spotify Playlist ไม่สำเร็จ ลองใหม่อีกทีนะ")
+                    raise MusicError(
+                        f"อ่าน Spotify Playlist ไม่สำเร็จ (HTTP {tracks_resp.status})"
+                    )
                 tracks_data = await tracks_resp.json()
             page_items = tracks_data.get("items") or []
             items.extend(page_items[: MAX_QUEUE_SIZE - len(items)])
@@ -374,7 +473,9 @@ async def _resolve_spotify_playlist(
         # together with the /items endpoint. Keep the fallback for older API
         # responses and test doubles during a rolling deployment.
         track_info = item.get("item") or item.get("track")
-        if not track_info or track_info.get("is_local"):
+        if not track_info or item.get("is_local") or track_info.get("is_local"):
+            continue
+        if track_info.get("type") not in {None, "track"}:
             continue
         track_name = track_info.get("name")
         artists = track_info.get("artists") or []
@@ -521,16 +622,12 @@ class YouTubeAudioSource(discord.PCMVolumeTransformer):
             raise MusicError("เครื่องที่รันบอทยังไม่ได้ติดตั้ง FFmpeg")
 
         try:
-            data = await asyncio.to_thread(
-                _extract_youtube_info,
-                youtube_url,
-                flat=False,
-            )
+            data = await _resolve_playback_data(youtube_url)
         except MusicError:
             raise
         except Exception as error:
             logger.exception("YouTube audio extraction failed for %s", youtube_url)
-            raise MusicError("ดึง audio stream จาก YouTube ไม่สำเร็จ") from error
+            raise _playback_error(error) from error
 
         stream_url = data.get("url")
         if not stream_url:
@@ -564,6 +661,7 @@ class GuildMusicState:
         self.loop_mode = "off"
         self.volume = 0.5
         self.advance_lock = asyncio.Lock()
+        self.last_start_error: MusicError | None = None
 
     async def enqueue(
         self,
@@ -593,6 +691,8 @@ class GuildMusicState:
             and not voice_client.is_paused()
         ):
             await self.play_next()
+            if self.current is None and self.last_start_error is not None:
+                raise self.last_start_error
             return 0
         return position
 
@@ -606,16 +706,43 @@ class GuildMusicState:
             if self.stop_requested:
                 return
 
+            consecutive_failures = 0
             while self.queue:
                 track = self.queue.popleft()
                 self.current = track
                 if await self._start_track(track):
                     return
                 self.current = None
+                consecutive_failures += 1
+
+                # A provider-wide failure will affect every remaining item.
+                # Drop the deferred queue and disconnect instead of producing
+                # one Discord error message per playlist entry.
+                if isinstance(self.last_start_error, YouTubeProviderError):
+                    self.queue.clear()
+                    await self._disconnect_when_idle(notify=False)
+                    return
+                if consecutive_failures >= MAX_CONSECUTIVE_START_FAILURES:
+                    skipped = len(self.queue)
+                    self.queue.clear()
+                    if self.text_channel and skipped:
+                        await self.text_channel.send(
+                            embed=make_notice_embed(
+                                self.bot,
+                                "Music",
+                                f"หยุดคิวหลังเตรียมเพลงไม่สำเร็จ "
+                                f"`{consecutive_failures}` เพลงติดกัน "
+                                f"และยกเลิกเพลงที่เหลือ `{skipped}` เพลง",
+                                color=EmbedColor.ERROR,
+                            )
+                        )
+                    await self._disconnect_when_idle(notify=False)
+                    return
 
             await self._disconnect_when_idle()
 
     async def _start_track(self, track: Track) -> bool:
+        self.last_start_error = None
         channel = self.text_channel
         voice_client = self.voice_client
         if channel is None or voice_client is None or not voice_client.is_connected():
@@ -645,6 +772,7 @@ class GuildMusicState:
                 raise last_error or MusicError("เตรียมเสียงไม่สำเร็จ")
             voice_client.play(source, after=self._after_playing)
         except MusicError as error:
+            self.last_start_error = error
             logger.warning(
                 "Could not play %s in guild %s: %s",
                 track.youtube_url,
@@ -698,6 +826,7 @@ class GuildMusicState:
             embed=embed,
             view=MusicControlView(self.bot, self.guild_id),
         )
+        self.last_start_error = None
         return True
 
     def _after_playing(self, error: Exception | None) -> None:
@@ -739,7 +868,7 @@ class GuildMusicState:
         except Exception:
             logger.exception("Could not advance the music queue")
 
-    async def _disconnect_when_idle(self) -> None:
+    async def _disconnect_when_idle(self, *, notify: bool = True) -> None:
         self.current = None
         voice_client = self.voice_client
         self.voice_client = None
@@ -749,7 +878,7 @@ class GuildMusicState:
         finally:
             self.voice_client = None
 
-        if self.text_channel:
+        if notify and self.text_channel:
             embed = make_embed(
                 self.bot,
                 "Music",
@@ -1032,6 +1161,9 @@ class MusicCog(commands.Cog):
                 f"คิวรับเพิ่มได้อีก `{error.available}` เพลง แต่รายการนี้มี `{error.requested}` เพลงนะ",
                 ephemeral=True,
             )
+            return
+        except MusicError as error:
+            await interaction.followup.send(f"😅 {error}", ephemeral=True)
             return
         except (discord.Forbidden, discord.HTTPException):
             logger.exception("Could not send music status in guild %s", interaction.guild.id)
@@ -1495,6 +1627,16 @@ class MusicCog(commands.Cog):
                         f"คิวรับเพิ่มได้อีก `{error.available}` เพลง "
                         f"แต่เพลย์ลิสต์นี้มี `{error.requested}` เพลงนะ",
                         color=EmbedColor.WARNING,
+                    )
+                )
+                return
+            except MusicError as error:
+                await interaction.followup.send(
+                    embed=make_notice_embed(
+                        self.bot,
+                        "Music • Playlist",
+                        str(error),
+                        color=EmbedColor.ERROR,
                     )
                 )
                 return

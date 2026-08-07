@@ -9,9 +9,12 @@ from src.cogs.music import (
     MusicError,
     SpotifyTrackMetadata,
     Track,
+    YouTubeProviderError,
     YOUTUBE_AUDIO_CLIENTS,
     YTDL_OPTIONS,
     _extract_youtube_info,
+    _playback_error,
+    _resolve_playback_data,
     _resolve_spotify_playlist,
     _resolve_single_youtube,
     _resolve_youtube_playlist,
@@ -101,6 +104,39 @@ class MusicRuntimeTests(unittest.IsolatedAsyncioTestCase):
             tracks[0].youtube_url,
             "https://www.youtube.com/watch?v=first",
         )
+
+    async def test_deferred_search_resolves_video_before_audio_extraction(self):
+        search_result = {"id": "video-id", "title": "Song"}
+        audio_result = {
+            "id": "video-id",
+            "title": "Song",
+            "url": "https://example.com/audio",
+        }
+        with patch(
+            "src.cogs.music._extract_youtube_info",
+            side_effect=[search_result, audio_result],
+        ) as extractor:
+            result = await _resolve_playback_data("ytsearch1:Song Artist")
+
+        self.assertEqual(result, audio_result)
+        self.assertEqual(
+            extractor.call_args_list[0].args,
+            ("ytsearch1:Song Artist",),
+        )
+        self.assertTrue(extractor.call_args_list[0].kwargs["flat"])
+        self.assertEqual(
+            extractor.call_args_list[1].args,
+            ("https://www.youtube.com/watch?v=video-id",),
+        )
+        self.assertFalse(extractor.call_args_list[1].kwargs["flat"])
+
+    def test_provider_error_classification_detects_youtube_block(self):
+        error = RuntimeError("HTTP Error 403: Sign in to confirm you're not a bot")
+
+        classified = _playback_error(error)
+
+        self.assertIsInstance(classified, YouTubeProviderError)
+        self.assertIn("YOUTUBE_PROXY", str(classified))
 
     async def test_spotify_playlist_uses_basic_auth_and_follows_pages(self):
         http_client = MagicMock()
@@ -337,6 +373,54 @@ class MusicRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(state.queue), 0)
         state.text_channel.send.assert_awaited_once()
         state.play_next.assert_awaited_once()
+
+    async def test_provider_failure_stops_playlist_after_first_track(self):
+        state = GuildMusicState(MagicMock(), 1)
+        state.queue.extend(
+            [
+                Track("One", "ytsearch1:One", MagicMock(), "Spotify Playlist"),
+                Track("Two", "ytsearch1:Two", MagicMock(), "Spotify Playlist"),
+                Track("Three", "ytsearch1:Three", MagicMock(), "Spotify Playlist"),
+            ]
+        )
+
+        async def fail_once(track):
+            state.last_start_error = YouTubeProviderError("YouTube unavailable")
+            return False
+
+        state._start_track = AsyncMock(side_effect=fail_once)
+        state._disconnect_when_idle = AsyncMock()
+
+        await state.play_next()
+
+        state._start_track.assert_awaited_once()
+        self.assertFalse(state.queue)
+        state._disconnect_when_idle.assert_awaited_once_with(notify=False)
+
+    async def test_track_failures_are_bounded_for_playlist(self):
+        state = GuildMusicState(MagicMock(), 1)
+        state.text_channel = MagicMock()
+        state.text_channel.send = AsyncMock()
+        state.queue.extend(
+            [
+                Track(str(index), f"ytsearch1:{index}", MagicMock(), "Spotify Playlist")
+                for index in range(10)
+            ]
+        )
+
+        async def fail_track(track):
+            state.last_start_error = MusicError("track unavailable")
+            return False
+
+        state._start_track = AsyncMock(side_effect=fail_track)
+        state._disconnect_when_idle = AsyncMock()
+
+        await state.play_next()
+
+        self.assertEqual(state._start_track.await_count, 3)
+        self.assertFalse(state.queue)
+        state.text_channel.send.assert_awaited_once()
+        state._disconnect_when_idle.assert_awaited_once_with(notify=False)
 
 
 if __name__ == "__main__":
