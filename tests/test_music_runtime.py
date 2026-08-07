@@ -12,7 +12,9 @@ from src.cogs.music import (
     YOUTUBE_AUDIO_CLIENTS,
     YTDL_OPTIONS,
     _extract_youtube_info,
+    _resolve_spotify_playlist,
     _resolve_single_youtube,
+    _resolve_youtube_playlist,
     music_states,
     playback_error_message,
     playback_queries,
@@ -23,6 +25,16 @@ from src.cogs.music import (
 
 
 class MusicRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def async_response(payload, *, status=200):
+        response = MagicMock()
+        response.status = status
+        response.json = AsyncMock(return_value=payload)
+        context = MagicMock()
+        context.__aenter__ = AsyncMock(return_value=response)
+        context.__aexit__ = AsyncMock(return_value=None)
+        return context
+
     def test_audio_extraction_prefers_hls_and_token_free_clients(self):
         with patch("src.cogs.music.yt_dlp.YoutubeDL") as youtube_dl:
             extractor = youtube_dl.return_value.__enter__.return_value
@@ -58,6 +70,98 @@ class MusicRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(options["extract_flat"], "in_playlist")
         self.assertNotIn("extractor_args", options)
         self.assertIn("js_runtimes", YTDL_OPTIONS)
+
+    async def test_youtube_playlist_expands_entries_and_is_bounded(self):
+        with patch("src.cogs.music.yt_dlp.YoutubeDL") as youtube_dl:
+            youtube_dl.return_value.extract_info.return_value = {
+                "entries": [
+                    {"id": "first", "title": "First song"},
+                    {"id": "second", "title": "Second song"},
+                ]
+            }
+
+            tracks = await _resolve_youtube_playlist(
+                "https://www.youtube.com/playlist?list=PL123",
+                MagicMock(),
+            )
+
+        options = youtube_dl.call_args.args[0]
+        self.assertFalse(options["noplaylist"])
+        self.assertEqual(options["playlistend"], 200)
+        self.assertEqual(len(tracks), 2)
+        self.assertEqual(
+            tracks[0].youtube_url,
+            "https://www.youtube.com/watch?v=first",
+        )
+
+    async def test_spotify_playlist_uses_basic_auth_and_follows_pages(self):
+        http_client = MagicMock()
+        http_client.post.return_value = self.async_response(
+            {"access_token": "access-token"}
+        )
+        http_client.get.side_effect = [
+            self.async_response(
+                {
+                    "items": [
+                        {
+                            "item": {
+                                "name": "First song",
+                                "artists": [{"name": "First artist"}],
+                                "external_urls": {
+                                    "spotify": "https://open.spotify.com/track/first"
+                                },
+                                "is_local": False,
+                            }
+                        }
+                    ],
+                    "next": "https://api.spotify.com/v1/playlists/id/items?offset=50",
+                }
+            ),
+            self.async_response(
+                {
+                    "items": [
+                        {
+                            "item": {
+                                "name": "Second song",
+                                "artists": [{"name": "Second artist"}],
+                                "external_urls": {
+                                    "spotify": "https://open.spotify.com/track/second"
+                                },
+                                "is_local": False,
+                            }
+                        },
+                        {"item": {"name": "Local song", "is_local": True}},
+                    ],
+                    "next": None,
+                }
+            ),
+        ]
+
+        with (
+            patch("src.cogs.music.SPOTIFY_CLIENT_ID", "client-id"),
+            patch("src.cogs.music.SPOTIFY_CLIENT_SECRET", "client-secret"),
+        ):
+            tracks = await _resolve_spotify_playlist(
+                "playlist123",
+                MagicMock(),
+                http_client,
+            )
+
+        token_kwargs = http_client.post.call_args.kwargs
+        self.assertEqual(token_kwargs["data"], {"grant_type": "client_credentials"})
+        self.assertEqual(
+            token_kwargs["headers"]["Authorization"],
+            "Basic Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=",
+        )
+        self.assertEqual(http_client.get.call_count, 2)
+        self.assertTrue(http_client.get.call_args_list[0].args[0].endswith("/items"))
+        self.assertEqual(http_client.get.call_args_list[0].kwargs["params"]["limit"], 50)
+        self.assertIsNone(http_client.get.call_args_list[1].kwargs["params"])
+        self.assertEqual(len(tracks), 2)
+        self.assertEqual(
+            tracks[0].display_url,
+            "https://open.spotify.com/track/first",
+        )
 
     async def test_spotify_track_keeps_provider_and_uses_two_youtube_searches(self):
         metadata = SpotifyTrackMetadata(

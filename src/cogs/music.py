@@ -6,6 +6,7 @@ import asyncio
 from dataclasses import dataclass
 import importlib.util
 import logging
+import re
 import shlex
 import shutil
 from typing import Any
@@ -29,10 +30,18 @@ MAX_QUEUE_SIZE = 200
 FFMPEG_EXECUTABLE = shutil.which("ffmpeg")
 SPOTIFY_OEMBED_URL = "https://open.spotify.com/oembed"
 SPOTIFY_HOSTS = {"open.spotify.com", "spotify.link"}
-YOUTUBE_HOSTS = {"youtube.com", "music.youtube.com", "youtu.be"}
+YOUTUBE_HOSTS = {
+    "youtube.com",
+    "m.youtube.com",
+    "music.youtube.com",
+    "youtu.be",
+    "youtube-nocookie.com",
+}
 YOUTUBE_WATCH_URL = "https://www.youtube.com/watch?v={video_id}"
 YOUTUBE_AUDIO_CLIENTS = ("android_vr", "web_safari")
 EJS_AVAILABLE = importlib.util.find_spec("yt_dlp_ejs") is not None
+SPOTIFY_ID_PATTERN = re.compile(r"^[A-Za-z0-9]+$")
+SPOTIFY_PLAYLIST_PAGE_SIZE = 50
 
 
 class MusicError(Exception):
@@ -243,7 +252,11 @@ def playback_queries(track: Track) -> tuple[str, ...]:
 
 async def _resolve_youtube_playlist(url: str, requester: discord.abc.User) -> list[Track]:
     options = dict(YTDL_OPTIONS)
+    # Single-track lookups deliberately avoid playlist expansion. Reverse that
+    # shared setting here and bound extraction to the queue's maximum size.
+    options["noplaylist"] = False
     options["extract_flat"] = "in_playlist"
+    options["playlistend"] = MAX_QUEUE_SIZE
     
     try:
         data = await asyncio.to_thread(
@@ -253,7 +266,7 @@ async def _resolve_youtube_playlist(url: str, requester: discord.abc.User) -> li
         logger.exception("YouTube playlist extraction failed")
         raise MusicError("อ่าน YouTube Playlist ไม่สำเร็จ ลองใหม่อีกทีนะ") from e
 
-    entries = data.get("entries") or []
+    entries = (data.get("entries") or []) if data else []
     tracks = []
     for entry in entries:
         if not entry:
@@ -266,7 +279,8 @@ async def _resolve_youtube_playlist(url: str, requester: discord.abc.User) -> li
                 title=title,
                 youtube_url=youtube_url,
                 requester=requester,
-                requested_via="YouTube Playlist"
+                requested_via="YouTube Playlist",
+                source_url=youtube_url,
             ))
             
     if not tracks:
@@ -286,13 +300,18 @@ async def _resolve_spotify_playlist(
             "เลยยังโหลด Spotify Playlist ไม่ได้นะ"
         )
         
+    if not SPOTIFY_ID_PATTERN.fullmatch(playlist_id):
+        raise MusicError("รหัส Spotify Playlist ไม่ถูกต้อง")
+
     token_url = "https://accounts.spotify.com/api/token"
-    auth_headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    auth_data = {
-        "grant_type": "client_credentials",
-        "client_id": SPOTIFY_CLIENT_ID,
-        "client_secret": SPOTIFY_CLIENT_SECRET
+    auth_headers = {
+        "Authorization": aiohttp.encode_basic_auth(
+            SPOTIFY_CLIENT_ID,
+            SPOTIFY_CLIENT_SECRET,
+        ),
+        "Content-Type": "application/x-www-form-urlencoded",
     }
+    auth_data = {"grant_type": "client_credentials"}
     
     timeout = aiohttp.ClientTimeout(total=10)
     try:
@@ -310,34 +329,48 @@ async def _resolve_spotify_playlist(
             if not access_token:
                 raise MusicError("Spotify API ไม่ส่ง access token กลับมา")
                 
-        # 2. Get playlist tracks (up to 100 tracks)
-        tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
+        # 2. Read pages up to the bounded queue capacity. Spotify caps playlist
+        # page sizes, so one oversized request is rejected by the API.
+        tracks_url: str | None = (
+            f"https://api.spotify.com/v1/playlists/{playlist_id}/items"
+        )
         playlist_headers = {"Authorization": f"Bearer {access_token}"}
-        params = {
-            "fields": "items(track(name,artists(name)))",
-            "limit": 100
+        params: dict[str, Any] | None = {
+            "fields": (
+                "items(item(name,artists(name),external_urls(spotify),is_local)),next"
+            ),
+            "limit": SPOTIFY_PLAYLIST_PAGE_SIZE,
         }
-        async with http_client.get(
-            tracks_url,
-            headers=playlist_headers,
-            params=params,
-            timeout=timeout,
-        ) as tracks_resp:
-            if tracks_resp.status != 200:
-                raise MusicError("อ่าน Spotify Playlist ไม่สำเร็จ ลองใหม่อีกทีนะ")
-            tracks_data = await tracks_resp.json()
+        items: list[dict[str, Any]] = []
+        while tracks_url and len(items) < MAX_QUEUE_SIZE:
+            async with http_client.get(
+                tracks_url,
+                headers=playlist_headers,
+                params=params,
+                timeout=timeout,
+            ) as tracks_resp:
+                if tracks_resp.status != 200:
+                    raise MusicError("อ่าน Spotify Playlist ไม่สำเร็จ ลองใหม่อีกทีนะ")
+                tracks_data = await tracks_resp.json()
+            page_items = tracks_data.get("items") or []
+            items.extend(page_items[: MAX_QUEUE_SIZE - len(items)])
+            tracks_url = tracks_data.get("next")
+            # The `next` URL already contains its offset and limit.
+            params = None
     except MusicError:
         raise
     except Exception as e:
         logger.exception("Failed to connect to Spotify API")
         raise MusicError("เกิดข้อผิดพลาดในการเชื่อมต่อเพื่อดึงข้อมูล Spotify Playlist") from e
         
-    items = tracks_data.get("items") or []
     tracks = []
     
     for item in items:
-        track_info = item.get("track")
-        if not track_info:
+        # Spotify renamed the playlist payload member from `track` to `item`
+        # together with the /items endpoint. Keep the fallback for older API
+        # responses and test doubles during a rolling deployment.
+        track_info = item.get("item") or item.get("track")
+        if not track_info or track_info.get("is_local"):
             continue
         track_name = track_info.get("name")
         artists = track_info.get("artists") or []
@@ -345,12 +378,14 @@ async def _resolve_spotify_playlist(
         
         if track_name:
             search_query = f"{track_name} {artist_names}".strip()
+            spotify_url = (track_info.get("external_urls") or {}).get("spotify")
             # Enqueue the query as a deferred search
             tracks.append(Track(
                 title=f"{track_name} - {artist_names}" if artist_names else track_name,
                 youtube_url=f"ytsearch1:{search_query} official audio",
                 requester=requester,
-                requested_via="Spotify Playlist"
+                requested_via="Spotify Playlist → YouTube",
+                source_url=spotify_url,
             ))
             
     if not tracks:
@@ -395,6 +430,8 @@ async def resolve_tracks(
                 
             parsed = urlparse(clean_url)
             host = parsed.hostname.lower().removeprefix("www.") if parsed.hostname else ""
+            if host != "open.spotify.com":
+                raise MusicError("ลิงก์ย่อไม่ได้พาไปยัง Spotify")
 
         path_parts = [part for part in parsed.path.split("/") if part]
         if len(path_parts) >= 2 and path_parts[-2] == "playlist":
