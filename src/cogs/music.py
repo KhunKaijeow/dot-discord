@@ -12,7 +12,7 @@ import shutil
 from typing import Any
 from urllib.parse import urlparse, parse_qs
 
-from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+from ..config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, YOUTUBE_PROXY
 from ..services.http_client import HttpClient
 from ..services.music_queue import MusicQueue, QueueFullError
 from ..ui import EmbedColor, make_embed, make_notice_embed, set_embed_author
@@ -107,6 +107,10 @@ YTDL_OPTIONS = {
     "fragment_retries": 3,
     "js_runtimes": _javascript_runtimes(),
 }
+if YOUTUBE_PROXY and YOUTUBE_PROXY.strip():
+    # Keep proxy credentials in Railway/.env and pass them directly to yt-dlp.
+    # Do not log this value because proxy URLs commonly contain a password.
+    YTDL_OPTIONS["proxy"] = YOUTUBE_PROXY.strip()
 
 
 async def defer_interaction(interaction: discord.Interaction) -> bool:

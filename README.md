@@ -187,6 +187,7 @@ TYPHOON_API_KEY=your_typhoon_api_key
 TOGETHER_API_KEY=your_together_api_key
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+YOUTUBE_PROXY=http://username:password@proxy-host:port
 VALORANT_API_KEY=your_valorant_api_key
 PROKERALA_CLIENT_ID=your_prokerala_client_id
 PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
@@ -199,6 +200,7 @@ PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
 | `TOGETHER_API_KEY` | สำหรับ /draw | [Together AI](https://together.ai/) |
 | `SPOTIFY_CLIENT_ID` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
 | `SPOTIFY_CLIENT_SECRET` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
+| `YOUTUBE_PROXY` | ไม่บังคับ; ใช้เมื่อ YouTube จำกัด IP ของเครื่อง deploy | ผู้ให้บริการ Proxy หรือ Proxy ที่ดูแลเอง |
 | `VALORANT_API_KEY` | ไม่ | [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) |
 | `PROKERALA_CLIENT_ID` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
 | `PROKERALA_CLIENT_SECRET` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
@@ -261,6 +263,8 @@ Connect และ Speak แก่บอทในห้องเสียง
 3. เพิ่ม `DISCORD_TOKEN`, `TYPHOON_API_KEY`, `TOGETHER_API_KEY`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `VALORANT_API_KEY`,
    `PROKERALA_CLIENT_ID` และ `PROKERALA_CLIENT_SECRET` ในหน้า
    **Variables**
+   หาก YouTube จำกัด IP ของ Railway ให้เพิ่ม `YOUTUBE_PROXY` ในรูปแบบ
+   `http://username:password@proxy-host:port` ด้วย โดยห้าม commit credentials ลง repository
 4. กำหนด Start Command เป็น:
 
    ```text

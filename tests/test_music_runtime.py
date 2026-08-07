@@ -71,6 +71,14 @@ class MusicRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("extractor_args", options)
         self.assertIn("js_runtimes", YTDL_OPTIONS)
 
+    def test_ytdl_proxy_option_matches_environment_configuration(self):
+        from src.cogs.music import YOUTUBE_PROXY
+
+        if YOUTUBE_PROXY and YOUTUBE_PROXY.strip():
+            self.assertEqual(YTDL_OPTIONS["proxy"], YOUTUBE_PROXY.strip())
+        else:
+            self.assertNotIn("proxy", YTDL_OPTIONS)
+
     async def test_youtube_playlist_expands_entries_and_is_bounded(self):
         with patch("src.cogs.music.yt_dlp.YoutubeDL") as youtube_dl:
             youtube_dl.return_value.extract_info.return_value = {

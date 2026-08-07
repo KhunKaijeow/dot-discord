@@ -18,6 +18,7 @@ from ..config import (
     TOGETHER_API_KEY,
     TYPHOON_API_KEY,
     VALORANT_API_KEY,
+    YOUTUBE_PROXY,
 )
 from ..services.database_migrations import LATEST_SCHEMA_VERSION
 from ..ui import EmbedColor, make_embed
@@ -205,6 +206,16 @@ class SetupCheckCog(commands.Cog):
                 "yt-dlp EJS",
                 EJS_AVAILABLE,
                 "พร้อมแก้ YouTube challenge" if EJS_AVAILABLE else "ไม่พบ yt-dlp-ejs",
+                required=False,
+            ),
+            CheckItem(
+                "YouTube Proxy",
+                True,
+                (
+                    "ตั้งค่าแล้ว (ซ่อน URL และ credentials)"
+                    if _is_configured(YOUTUBE_PROXY)
+                    else "ไม่ได้ตั้งค่า (เชื่อมต่อ YouTube โดยตรง)"
+                ),
                 required=False,
             ),
         ]
