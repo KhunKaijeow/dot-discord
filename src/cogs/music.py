@@ -321,17 +321,29 @@ class MusicCog(commands.Cog):
             await interaction.followup.send(embed=embed)
             return
 
-        # Connect to voice
+        # Connect to voice with stale cleanup and timeout parameters
         if not state.voice_client or not state.voice_client.is_connected():
             try:
-                state.voice_client = await voice_channel.connect()
+                if state.voice_client:
+                    try:
+                        await state.voice_client.disconnect(force=True)
+                    except Exception:
+                        pass
+                    state.voice_client = None
+
+                state.voice_client = await voice_channel.connect(timeout=30.0, reconnect=True, self_deaf=True)
             except Exception as e:
                 logger.exception("Failed to connect to voice channel")
+                error_msg = str(e)
+                if "PyNaCl" in error_msg:
+                    error_msg = "เซิร์ฟเวอร์ยังไม่ได้ติดตั้งไลบรารี PyNaCl (โปรด Rebuild หรือ Redeploy บอทหลังจากเพิ่ม requirements.txt)"
+                elif "Did not connect" in error_msg:
+                    error_msg = "การเชื่อมต่อห้องเสียงหมดเวลา (Timeout) ลองเรียกคำสั่งใหม่อีกครั้งนะ"
                 embed = make_embed(
                     self.bot,
                     "Music",
                     title="❌ เชื่อมต่อล้มเหลว",
-                    description=f"ไม่สามารถเชื่อมต่อห้องเสียงได้: {e}",
+                    description=f"ไม่สามารถเชื่อมต่อห้องเสียงได้: {error_msg}",
                     color=EmbedColor.ERROR,
                 )
                 await interaction.followup.send(embed=embed)
