@@ -30,6 +30,20 @@ class MusicCog(commands.Cog):
         )
         self.players: dict[int, GuildPlayer] = {}
 
+    def _embed(
+        self,
+        title: str,
+        description: str,
+        color: EmbedColor = EmbedColor.INFO,
+    ) -> discord.Embed:
+        return make_embed(
+            self.bot,
+            "Music",
+            title=title,
+            description=description,
+            color=color,
+        )
+
     def cog_unload(self) -> None:
         self.sources.close()
         for player in self.players.values():
@@ -57,7 +71,11 @@ class MusicCog(commands.Cog):
         if user_channel and bot_channel and user_channel.id == bot_channel.id:
             return True
         await interaction.response.send_message(
-            "คุณต้องอยู่ในห้องเสียงเดียวกับบอทก่อนใช้คำสั่งนี้",
+            embed=self._embed(
+                "🎧 ต้องอยู่ห้องเดียวกัน",
+                "เข้าห้องเสียงเดียวกับบอทก่อนใช้คำสั่งควบคุมเพลง",
+                EmbedColor.WARNING,
+            ),
             ephemeral=True,
         )
         return False
@@ -102,10 +120,24 @@ class MusicCog(commands.Cog):
     async def play(self, interaction: discord.Interaction, query: str) -> None:
         channel = self._user_voice_channel(interaction)
         if not channel:
-            await interaction.response.send_message("เข้าห้องเสียงก่อนใช้ `/play`", ephemeral=True)
+            await interaction.response.send_message(
+                embed=self._embed(
+                    "🎧 ยังไม่ได้เข้าห้องเสียง",
+                    "เข้าห้องเสียงที่ต้องการให้บอทเล่นเพลง แล้วเรียก `/play` อีกครั้ง",
+                    EmbedColor.WARNING,
+                ),
+                ephemeral=True,
+            )
             return
         if not interaction.guild or not interaction.channel:
-            await interaction.response.send_message("คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์", ephemeral=True)
+            await interaction.response.send_message(
+                embed=self._embed(
+                    "❌ ใช้คำสั่งไม่ได้",
+                    "คำสั่งเพลงใช้งานได้เฉพาะภายในเซิร์ฟเวอร์ Discord",
+                    EmbedColor.ERROR,
+                ),
+                ephemeral=True,
+            )
             return
 
         await interaction.response.defer(thinking=True)
@@ -122,21 +154,43 @@ class MusicCog(commands.Cog):
             player.attach(voice, interaction.channel)
             player.enqueue(tracks)
         except SourceError as exc:
-            await interaction.followup.send(f"❌ {exc}", ephemeral=True)
+            await interaction.followup.send(
+                embed=self._embed("❌ โหลดเพลงไม่สำเร็จ", str(exc), EmbedColor.ERROR),
+                ephemeral=True,
+            )
             return
         except Exception:
             logger.exception("Unexpected /play failure")
-            await interaction.followup.send("❌ โหลดเพลงไม่สำเร็จ กรุณาลองใหม่", ephemeral=True)
+            await interaction.followup.send(
+                embed=self._embed(
+                    "❌ โหลดเพลงไม่สำเร็จ",
+                    "เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณารอสักครู่แล้วลองใหม่",
+                    EmbedColor.ERROR,
+                ),
+                ephemeral=True,
+            )
             return
 
         first = tracks[0]
         if len(tracks) == 1:
-            message = f"✅ เพิ่ม **[{first.display_name}]({first.webpage_url})** เข้าคิวแล้ว"
+            description = f"**[{first.display_name}]({first.webpage_url})**"
         else:
-            message = f"✅ เพิ่ม **{len(tracks)} เพลง** เข้าคิวแล้ว เริ่มจาก **{first.display_name}**"
+            description = (
+                f"เพิ่ม **{len(tracks)} เพลง** เข้าคิวแล้ว\n"
+                f"เพลงแรก: **[{first.display_name}]({first.webpage_url})**"
+            )
+        embed = self._embed("✅ เพิ่มเข้าคิวแล้ว", description, EmbedColor.SUCCESS)
+        embed.add_field(name="ลิงก์ต้นทาง", value=first.source.title(), inline=True)
+        embed.add_field(name="เพลงที่รอ", value=str(len(player.queue)), inline=True)
         if first.source == "spotify":
-            message += "\nSpotify ใช้สำหรับข้อมูลเพลง และจับคู่เสียงสำหรับ Discord ผ่าน YouTube"
-        await interaction.followup.send(message)
+            embed.add_field(
+                name="การเล่นเสียง",
+                value="จับคู่ Spotify metadata ผ่าน YouTube",
+                inline=False,
+            )
+        if first.thumbnail:
+            embed.set_thumbnail(url=first.thumbnail)
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="pause", description="พักเพลงที่กำลังเล่น")
     @app_commands.guild_only()
@@ -144,8 +198,13 @@ class MusicCog(commands.Cog):
         player = self._player(interaction.guild_id or 0)
         if not await self._require_same_voice(interaction, player):
             return
-        message = "⏸️ พักเพลงแล้ว" if player.pause() else "ตอนนี้ไม่มีเพลงที่กำลังเล่น"
-        await interaction.response.send_message(message, ephemeral=not player.voice)
+        paused = player.pause()
+        embed = self._embed(
+            "⏸️ พักเพลงแล้ว" if paused else "⚠️ ไม่มีเพลงให้พัก",
+            "ใช้ `/resume` เมื่อต้องการเล่นต่อ" if paused else "ตอนนี้ไม่มีเพลงที่กำลังเล่น",
+            EmbedColor.INFO if paused else EmbedColor.WARNING,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not paused)
 
     @app_commands.command(name="resume", description="เล่นเพลงที่พักไว้ต่อ")
     @app_commands.guild_only()
@@ -153,8 +212,13 @@ class MusicCog(commands.Cog):
         player = self._player(interaction.guild_id or 0)
         if not await self._require_same_voice(interaction, player):
             return
-        message = "▶️ เล่นเพลงต่อแล้ว" if player.resume() else "เพลงไม่ได้อยู่ในสถานะพัก"
-        await interaction.response.send_message(message)
+        resumed = player.resume()
+        embed = self._embed(
+            "▶️ เล่นเพลงต่อแล้ว" if resumed else "⚠️ เล่นต่อไม่ได้",
+            "กลับมาเล่นเพลงปัจจุบันเรียบร้อย" if resumed else "เพลงไม่ได้อยู่ในสถานะพัก",
+            EmbedColor.SUCCESS if resumed else EmbedColor.WARNING,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not resumed)
 
     @app_commands.command(name="skip", description="ข้ามไปเพลงถัดไป")
     @app_commands.guild_only()
@@ -162,8 +226,13 @@ class MusicCog(commands.Cog):
         player = self._player(interaction.guild_id or 0)
         if not await self._require_same_voice(interaction, player):
             return
-        message = "⏭️ ข้ามเพลงแล้ว" if player.skip() else "ตอนนี้ไม่มีเพลงที่กำลังเล่น"
-        await interaction.response.send_message(message)
+        skipped = player.skip()
+        embed = self._embed(
+            "⏭️ ข้ามเพลงแล้ว" if skipped else "⚠️ ไม่มีเพลงให้ข้าม",
+            "กำลังเตรียมเพลงถัดไปในคิว" if skipped else "ตอนนี้ไม่มีเพลงที่กำลังเล่น",
+            EmbedColor.INFO if skipped else EmbedColor.WARNING,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not skipped)
 
     @app_commands.command(name="stop", description="หยุดเพลง ล้างคิว และออกจากห้องเสียง")
     @app_commands.guild_only()
@@ -172,14 +241,27 @@ class MusicCog(commands.Cog):
         if not await self._require_same_voice(interaction, player):
             return
         await player.stop()
-        await interaction.response.send_message("⏹️ หยุดเพลง ล้างคิว และออกจากห้องแล้ว")
+        await interaction.response.send_message(
+            embed=self._embed(
+                "⏹️ หยุดเล่นเพลงแล้ว",
+                "ล้างคิวและออกจากห้องเสียงเรียบร้อย",
+                EmbedColor.SUCCESS,
+            )
+        )
 
     @app_commands.command(name="queue", description="ดูเพลงปัจจุบันและรายการเพลงถัดไป")
     @app_commands.guild_only()
     async def queue(self, interaction: discord.Interaction) -> None:
         player = self._player(interaction.guild_id or 0)
         if not player.current and not player.queue:
-            await interaction.response.send_message("📭 คิวเพลงว่าง", ephemeral=True)
+            await interaction.response.send_message(
+                embed=self._embed(
+                    "📭 คิวเพลงว่าง",
+                    "ใช้ `/play` เพื่อเพิ่มเพลงจาก YouTube หรือ Spotify",
+                    EmbedColor.INFO,
+                ),
+                ephemeral=True,
+            )
             return
 
         lines = []
@@ -207,7 +289,14 @@ class MusicCog(commands.Cog):
     async def nowplaying(self, interaction: discord.Interaction) -> None:
         track = self._player(interaction.guild_id or 0).current
         if not track:
-            await interaction.response.send_message("ตอนนี้ไม่มีเพลงที่กำลังเล่น", ephemeral=True)
+            await interaction.response.send_message(
+                embed=self._embed(
+                    "🎵 ยังไม่มีเพลงที่กำลังเล่น",
+                    "ใช้ `/play` เพื่อเริ่มเล่นเพลง",
+                    EmbedColor.INFO,
+                ),
+                ephemeral=True,
+            )
             return
         embed = make_embed(
             self.bot,
@@ -218,6 +307,11 @@ class MusicCog(commands.Cog):
         )
         if track.thumbnail:
             embed.set_thumbnail(url=track.thumbnail)
+        if track.duration:
+            minutes, seconds = divmod(int(track.duration), 60)
+            embed.add_field(name="ความยาว", value=f"{minutes}:{seconds:02d}", inline=True)
+        embed.add_field(name="ลิงก์ต้นทาง", value=track.source.title(), inline=True)
+        embed.add_field(name="แหล่งเสียง", value="YouTube", inline=True)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="shuffle", description="สุ่มลำดับเพลงที่รอในคิว")
@@ -226,8 +320,15 @@ class MusicCog(commands.Cog):
         player = self._player(interaction.guild_id or 0)
         if not await self._require_same_voice(interaction, player):
             return
-        message = "🔀 สุ่มคิวเรียบร้อย" if player.shuffle() else "ต้องมีเพลงรออย่างน้อย 2 เพลง"
-        await interaction.response.send_message(message)
+        shuffled = player.shuffle()
+        embed = self._embed(
+            "🔀 สุ่มคิวเรียบร้อย" if shuffled else "⚠️ สุ่มคิวไม่ได้",
+            f"จัดลำดับเพลงที่รอใหม่แล้วทั้งหมด {len(player.queue)} เพลง"
+            if shuffled
+            else "ต้องมีเพลงรอในคิวอย่างน้อย 2 เพลง",
+            EmbedColor.SUCCESS if shuffled else EmbedColor.WARNING,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=not shuffled)
 
 
 async def setup(bot: commands.Bot) -> None:

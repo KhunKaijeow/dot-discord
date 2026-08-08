@@ -70,7 +70,11 @@ class GuildPlayer:
                     try:
                         await asyncio.wait_for(self._queue_changed.wait(), timeout=self.idle_timeout)
                     except asyncio.TimeoutError:
-                        await self._send("💤 ไม่มีเพลงใหม่ในคิว บอทออกจากห้องเสียงแล้ว")
+                        await self._send_status(
+                            "💤 ออกจากห้องเสียงแล้ว",
+                            "ไม่มีเพลงใหม่ในคิวเป็นเวลา 3 นาที",
+                            EmbedColor.INFO,
+                        )
                         await self.disconnect()
                         return
                     continue
@@ -98,12 +102,20 @@ class GuildPlayer:
                             "❌ YouTube ปฏิเสธการเชื่อมต่อ กรุณาตั้งค่า "
                             "`YOUTUBE_COOKIES_BASE64`"
                         )
-                    await self._send(message)
+                    await self._send_status(
+                        "🔐 เล่นเพลงไม่ได้",
+                        message.removeprefix("❌ "),
+                        EmbedColor.ERROR,
+                    )
                     await self.disconnect()
                     return
                 except SourceError as exc:
                     logger.warning("Could not resolve stream for guild %d: %s", self.guild_id, exc)
-                    await self._send(f"❌ เล่น **{track.display_name}** ไม่สำเร็จ: {exc}")
+                    await self._send_status(
+                        "❌ เล่นเพลงไม่สำเร็จ",
+                        f"**{track.display_name}**\n{exc}",
+                        EmbedColor.ERROR,
+                    )
                 except discord.ClientException as exc:
                     logger.exception("Discord audio setup failed for guild %d", self.guild_id)
                     message = (
@@ -111,12 +123,16 @@ class GuildPlayer:
                         if "ffmpeg" in str(exc).lower()
                         else "Discord ไม่สามารถเริ่ม audio player ได้"
                     )
-                    await self._send(f"❌ {message}")
+                    await self._send_status("❌ เริ่มเล่นเสียงไม่ได้", message, EmbedColor.ERROR)
                 except asyncio.CancelledError:
                     raise
                 except Exception:
                     logger.exception("Unexpected playback failure for guild %d", self.guild_id)
-                    await self._send("❌ เกิดข้อผิดพลาดระหว่างเล่นเพลง")
+                    await self._send_status(
+                        "❌ เกิดข้อผิดพลาดระหว่างเล่นเพลง",
+                        "ข้ามเพลงนี้และกำลังตรวจเพลงถัดไปในคิว",
+                        EmbedColor.ERROR,
+                    )
                 finally:
                     self.current = None
         finally:
@@ -171,6 +187,21 @@ class GuildPlayer:
             await self.text_channel.send(content, embed=embed)
         except discord.HTTPException:
             logger.warning("Could not send music status to guild %d", self.guild_id)
+
+    async def _send_status(
+        self,
+        title: str,
+        description: str,
+        color: EmbedColor,
+    ) -> None:
+        embed = make_embed(
+            self.bot,
+            "Music",
+            title=title,
+            description=description,
+            color=color,
+        )
+        await self._send(embed=embed)
 
     def pause(self) -> bool:
         if not self.voice or not self.voice.is_playing():

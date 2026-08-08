@@ -243,10 +243,11 @@ class GuildPlayerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sources.requests, [tracks[0]])
         self.assertFalse(player.queue)
         self.assertFalse(voice.connected)
-        user_messages = [content for content, _ in channel.messages if content]
-        self.assertEqual(len(user_messages), 1)
-        self.assertIn("Spotify", user_messages[0])
-        self.assertIn("YouTube", user_messages[0])
+        status_embeds = [embed for _, embed in channel.messages if embed]
+        self.assertEqual(len(status_embeds), 1)
+        self.assertEqual(status_embeds[0].title, "🔐 เล่นเพลงไม่ได้")
+        self.assertIn("Spotify", status_embeds[0].description)
+        self.assertIn("YouTube", status_embeds[0].description)
 
 
 if __name__ == "__main__":
