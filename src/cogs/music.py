@@ -27,6 +27,11 @@ YTDL_OPTIONS = {
     "no_warnings": True,
     "default_search": "auto",
     "source_address": "0.0.0.0",
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["android", "ios", "mweb", "tv_embedded"],
+        }
+    },
 }
 
 FFMPEG_OPTIONS = {
@@ -258,6 +263,11 @@ class MusicCog(commands.Cog):
             "skip_download": True,
             "quiet": True,
             "no_warnings": True,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios", "mweb", "tv_embedded"],
+                }
+            },
         }
         with yt_dlp.YoutubeDL(opts) as ydl:
             try:
