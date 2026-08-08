@@ -11,7 +11,7 @@ import discord
 
 from ..ui import EmbedColor, make_embed
 from .models import Track
-from .sources import MusicSourceResolver, SourceError
+from .sources import MusicSourceResolver, SourceError, YouTubeAuthenticationError
 
 
 logger = logging.getLogger("discord.javis.music.player")
@@ -80,6 +80,27 @@ class GuildPlayer:
                 try:
                     stream_url = await self.sources.stream_url(track)
                     await self._play(track, stream_url)
+                except YouTubeAuthenticationError:
+                    self.queue.clear()
+                    logger.warning(
+                        "Audio provider authentication failed for guild %d (input source: %s)",
+                        self.guild_id,
+                        track.source,
+                    )
+                    if track.source == "spotify":
+                        message = (
+                            "❌ อ่านข้อมูล Spotify สำเร็จ แต่ Spotify ไม่ส่ง audio stream สำหรับ Discord "
+                            "และ YouTube ซึ่งเป็นแหล่งเสียงถูกปฏิเสธการเชื่อมต่อ "
+                            "กรุณาตั้งค่า `YOUTUBE_COOKIES_BASE64`"
+                        )
+                    else:
+                        message = (
+                            "❌ YouTube ปฏิเสธการเชื่อมต่อ กรุณาตั้งค่า "
+                            "`YOUTUBE_COOKIES_BASE64`"
+                        )
+                    await self._send(message)
+                    await self.disconnect()
+                    return
                 except SourceError as exc:
                     logger.warning("Could not resolve stream for guild %d: %s", self.guild_id, exc)
                     await self._send(f"❌ เล่น **{track.display_name}** ไม่สำเร็จ: {exc}")
@@ -137,7 +158,8 @@ class GuildPlayer:
         if track.duration:
             minutes, seconds = divmod(int(track.duration), 60)
             embed.add_field(name="ความยาว", value=f"{minutes}:{seconds:02d}", inline=True)
-        embed.add_field(name="แหล่งข้อมูล", value=track.source.title(), inline=True)
+        embed.add_field(name="ลิงก์ต้นทาง", value=track.source.title(), inline=True)
+        embed.add_field(name="แหล่งเสียง", value="YouTube", inline=True)
         if track.thumbnail:
             embed.set_thumbnail(url=track.thumbnail)
         await self._send(embed=embed)

@@ -134,6 +134,8 @@ class MusicCog(commands.Cog):
             message = f"✅ เพิ่ม **[{first.display_name}]({first.webpage_url})** เข้าคิวแล้ว"
         else:
             message = f"✅ เพิ่ม **{len(tracks)} เพลง** เข้าคิวแล้ว เริ่มจาก **{first.display_name}**"
+        if first.source == "spotify":
+            message += "\nSpotify ใช้สำหรับข้อมูลเพลง และจับคู่เสียงสำหรับ Discord ผ่าน YouTube"
         await interaction.followup.send(message)
 
     @app_commands.command(name="pause", description="พักเพลงที่กำลังเล่น")

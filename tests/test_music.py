@@ -6,7 +6,12 @@ from unittest.mock import patch
 
 from src.music.models import Track
 from src.music.player import GuildPlayer
-from src.music.sources import CookieFile, SpotifyResolver, YouTubeResolver
+from src.music.sources import (
+    CookieFile,
+    SpotifyResolver,
+    YouTubeAuthenticationError,
+    YouTubeResolver,
+)
 
 
 class FakeResponse:
@@ -129,6 +134,12 @@ class FakeSources:
         return "https://audio.example/stream"
 
 
+class AuthenticationFailureSources(FakeSources):
+    async def stream_url(self, track):
+        self.requests.append(track)
+        raise YouTubeAuthenticationError("authentication required")
+
+
 class FakeTextChannel:
     def __init__(self):
         self.messages = []
@@ -202,6 +213,40 @@ class GuildPlayerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sources.requests, [track])
         self.assertFalse(voice.connected)
         self.assertTrue(any(embed is not None for _, embed in channel.messages))
+
+    async def test_spotify_audio_auth_failure_stops_queue_and_reports_both_sources_once(self):
+        import asyncio
+
+        sources = AuthenticationFailureSources()
+        voice = FakeVoice()
+        channel = FakeTextChannel()
+        player = GuildPlayer(FakeBot(), 123, sources)
+        player.attach(voice, channel)
+        tracks = [
+            Track(
+                title=f"Song {index}",
+                artists="Artist",
+                webpage_url=f"https://open.spotify.com/track/{index}",
+                playback_query=f"Song {index} Artist official audio",
+                source="spotify",
+                requester="tester",
+            )
+            for index in range(3)
+        ]
+
+        player.enqueue(tracks)
+        for _ in range(20):
+            if not voice.connected:
+                break
+            await asyncio.sleep(0.01)
+
+        self.assertEqual(sources.requests, [tracks[0]])
+        self.assertFalse(player.queue)
+        self.assertFalse(voice.connected)
+        user_messages = [content for content, _ in channel.messages if content]
+        self.assertEqual(len(user_messages), 1)
+        self.assertIn("Spotify", user_messages[0])
+        self.assertIn("YouTube", user_messages[0])
 
 
 if __name__ == "__main__":

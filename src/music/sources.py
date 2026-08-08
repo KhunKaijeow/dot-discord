@@ -36,6 +36,23 @@ class YouTubeAuthenticationError(SourceError):
     """YouTube challenged the deployment IP and requires cookies."""
 
 
+class _YTDLPLogger:
+    """Route yt-dlp diagnostics through the application logger without stderr spam."""
+
+    def debug(self, message: str) -> None:
+        logger.debug("yt-dlp: %s", message)
+
+    def info(self, message: str) -> None:
+        logger.debug("yt-dlp: %s", message)
+
+    def warning(self, message: str) -> None:
+        logger.debug("yt-dlp warning: %s", message)
+
+    def error(self, message: str) -> None:
+        # The resolver converts this into one safe SourceError for the user.
+        logger.debug("yt-dlp error: %s", message)
+
+
 class CookieFile:
     """Materialize optional Base64 cookies as a private temporary file."""
 
@@ -106,6 +123,7 @@ class YouTubeResolver:
             "socket_timeout": 20,
             "retries": 2,
             "source_address": "0.0.0.0",
+            "logger": _YTDLPLogger(),
         }
         cookie_path = self.cookie_file.get()
         if cookie_path:
@@ -389,7 +407,13 @@ class MusicSourceResolver:
         return await self.youtube.resolve(clean_query, requester)
 
     async def stream_url(self, track: Track) -> str:
-        return await self.youtube.stream_url(track)
+        if track.source == "youtube":
+            return await self.youtube.stream_url(track)
+        if track.source == "spotify":
+            # Spotify Web API supplies metadata, not a Discord-compatible
+            # audio stream. Match that metadata against the audio provider.
+            return await self.youtube.stream_url(track)
+        raise SourceError("ไม่รู้จักแหล่งเพลงนี้")
 
     def close(self) -> None:
         self.cookies.close()
