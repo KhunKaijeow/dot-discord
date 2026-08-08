@@ -335,8 +335,8 @@ class MusicCog(commands.Cog):
             except Exception as e:
                 logger.exception("Failed to connect to voice channel")
                 error_msg = str(e)
-                if "PyNaCl" in error_msg:
-                    error_msg = "เซิร์ฟเวอร์ยังไม่ได้ติดตั้งไลบรารี PyNaCl (โปรด Rebuild หรือ Redeploy บอทหลังจากเพิ่ม requirements.txt)"
+                if "PyNaCl" in error_msg or "davey" in error_msg:
+                    error_msg = "เซิร์ฟเวอร์ยังไม่ได้ติดตั้งไลบรารี PyNaCl/davey (โปรด Rebuild หรือ Redeploy บอทหลังอัปเดต requirements.txt)"
                 elif "Did not connect" in error_msg:
                     error_msg = "การเชื่อมต่อห้องเสียงหมดเวลา (Timeout) ลองเรียกคำสั่งใหม่อีกครั้งนะ"
                 embed = make_embed(
