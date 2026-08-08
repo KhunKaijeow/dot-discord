@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from src.config import DISCORD_TOKEN, missing_required_environment_variables
 
@@ -6,6 +7,7 @@ from src.config import DISCORD_TOKEN, missing_required_environment_variables
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    stream=sys.stdout,
 )
 logger = logging.getLogger("javis.startup")
 
@@ -22,7 +24,9 @@ def main() -> None:
     from src.bot import bot
 
     assert DISCORD_TOKEN is not None
-    bot.run(DISCORD_TOKEN)
+    # The root logger above owns the single stdout handler. Disabling the
+    # handler installed by discord.py prevents duplicate lines on Railway.
+    bot.run(DISCORD_TOKEN, log_handler=None)
 
 
 if __name__ == "__main__":

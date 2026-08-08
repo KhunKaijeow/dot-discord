@@ -83,7 +83,9 @@ class JavisBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.default()
         super().__init__(
-            command_prefix="!",
+            # This bot exposes application commands only. A mention-only
+            # prefix avoids requiring the privileged Message Content intent.
+            command_prefix=commands.when_mentioned,
             intents=intents,
             allowed_mentions=discord.AllowedMentions.none(),
         )
