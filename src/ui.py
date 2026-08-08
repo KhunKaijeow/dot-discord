@@ -11,7 +11,6 @@ class EmbedColor(IntEnum):
     SUCCESS = 0x57F287
     WARNING = 0xFEE75C
     ERROR = 0xED4245
-    MUSIC = 0xEB459E
     MARKET_UP = 0x2ECC71
     MARKET_DOWN = 0xE74C3C
     GOLD = 0xF1C40F

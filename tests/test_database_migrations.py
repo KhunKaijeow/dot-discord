@@ -33,6 +33,15 @@ class DatabaseMigrationTests(unittest.TestCase):
             [(migration.version, migration.name) for migration in MIGRATIONS],
         )
         self.assertEqual(reopened.migration_history(), first_history)
+        with sqlite3.connect(self.path) as connection:
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+        self.assertNotIn("playlists", tables)
+        self.assertNotIn("playlist_tracks", tables)
 
     def test_existing_unversioned_schema_is_adopted_without_data_loss(self):
         with sqlite3.connect(self.path) as connection:
@@ -64,6 +73,26 @@ class DatabaseMigrationTests(unittest.TestCase):
         self.assertEqual(settings["digest_minute"], 0)
         self.assertEqual(settings["digest_city"], "Bangkok")
         self.assertEqual(settings["digest_enabled"], 0)
+
+    def test_music_removal_migration_drops_legacy_playlist_tables(self):
+        with sqlite3.connect(self.path) as connection:
+            apply_migrations(connection, MIGRATIONS[:3])
+            connection.execute(
+                "INSERT INTO playlists(user_id, name, created_at) VALUES (1, 'old', 'now')"
+            )
+
+        database = Database(self.path)
+
+        self.assertEqual(database.schema_version(), LATEST_SCHEMA_VERSION)
+        with sqlite3.connect(self.path) as connection:
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+        self.assertNotIn("playlists", tables)
+        self.assertNotIn("playlist_tracks", tables)
 
     def test_failed_migration_rolls_back_its_schema_and_history(self):
         migrations = (

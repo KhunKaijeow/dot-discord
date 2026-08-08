@@ -35,21 +35,6 @@ HELP_CATEGORIES = (
         ),
     ),
     HelpCategory(
-        "music",
-        "เพลงและเพลย์ลิสต์",
-        "🎵",
-        "เล่นเพลง จัดการคิว และบันทึกเพลย์ลิสต์ส่วนตัว",
-        (
-            ("/play", "เล่นจากชื่อเพลง, YouTube หรือ Spotify"),
-            ("/pause · /resume · /skip", "พัก เล่นต่อ หรือข้ามเพลง"),
-            ("/queue · /now-playing", "ดูคิวและเพลงที่กำลังเล่น"),
-            ("/volume · /loop · /shuffle", "ปรับเสียง เล่นซ้ำ และสุ่มคิว"),
-            ("/remove · /clear-queue · /stop", "ลบเพลง ล้างคิว หรือหยุดเล่น"),
-            ("/playlist-save · /playlist-load", "บันทึกหรือโหลดเพลย์ลิสต์"),
-            ("/playlist-list · /playlist-delete", "ดูหรือลบเพลย์ลิสต์ส่วนตัว"),
-        ),
-    ),
-    HelpCategory(
         "market",
         "ตลาดและการแจ้งเตือนราคา",
         "📈",

@@ -198,6 +198,14 @@ MIGRATIONS = (
         statements=(),
         operation=_repair_legacy_guild_settings,
     ),
+    Migration(
+        version=4,
+        name="remove_legacy_music_data",
+        statements=(
+            "DROP TABLE IF EXISTS playlist_tracks",
+            "DROP TABLE IF EXISTS playlists",
+        ),
+    ),
 )
 
 LATEST_SCHEMA_VERSION = MIGRATIONS[-1].version

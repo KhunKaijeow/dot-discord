@@ -46,7 +46,6 @@ circular import
 | กลุ่ม | Cog/Service หลัก | รายละเอียด |
 | --- | --- | --- |
 | AI chat/tools | `bot.py`, `cogs/ai_tools.py`, `services/typhoon.py` | Typhoon AI, ประวัติแชทแยกตาม channel และ Context Menu 3 รายการ |
-| Music | `cogs/music.py`, `services/music_queue.py` | yt-dlp/EJS, FFmpeg/Opus, HLS fallback, Spotify resolution, bounded queue และ Saved Playlists |
 | Market | `cogs/stock.py`, `crypto.py`, `gold.py`, `price_alerts.py` | Yahoo Finance, Binance, กราฟ 30 วัน และ Price Alerts |
 | Content | `news.py`, `translator.py`, `draw.py` | Google News RSS, Google Translate และ Together AI FLUX.1 |
 | Utility | `help.py`, `weather.py`, `valorant.py`, `horoscope.py`, `privacy.py` | เมนูคำสั่งแบบ Interactive, wttr.in, HenrikDev, Prokerala, Wikimedia และคำสั่งจัดการข้อมูลส่วนตัว |
@@ -90,15 +89,14 @@ Migration `v3 repair_legacy_guild_settings` เติมคอลัมน์ท
 - ห้องแจ้งเตือน sheapgamer/เกมฟรี และรายการที่เคยส่งแยกตาม Server
 - Reminder แบบครั้งเดียวและแบบทำซ้ำ
 - Price Alert ของผู้ใช้
-- Saved Playlists และลำดับเพลง (ลบ tracks อัตโนมัติด้วย `ON DELETE CASCADE`)
 
 การตั้งค่าระบบอัตโนมัติอยู่ในตาราง `automation_settings` ส่วน GUID/ID ที่ notifier
 เคยส่งอยู่ใน `notifier_seen_items` โดยใช้ `(guild_id, notifier, item_id)` เป็น
 primary key เพื่อป้องกันการส่งซ้ำภายในแต่ละ Server
 
 คำสั่ง `/dashboard-disable`, `/deals-disable` และ `/x-disable` ล้างเฉพาะ channel/message
-configuration ของ Server ที่เรียกใช้ ส่วน `/my-data-delete` ลบ Reminder, Price Alert,
-Saved Playlist และ Playlist Track ของผู้เรียกแบบ transaction เดียว ข้อมูลผู้ใช้อื่น
+configuration ของ Server ที่เรียกใช้ ส่วน `/my-data-delete` ลบ Reminder และ Price Alert
+ของผู้เรียกแบบ transaction เดียว ข้อมูลผู้ใช้อื่น
 และการตั้งค่าระดับ Server ไม่รวมอยู่ในการลบ
 
 Cog ควรเรียก synchronous repository methods ด้วย `asyncio.to_thread` เพื่อไม่ block
@@ -107,11 +105,7 @@ allowlist ใน `Database.update_settings` ก่อนรองรับกา
 
 ข้อมูลต่อไปนี้ไม่ได้อยู่ใน SQLite:
 
-- ประวัติแชท Typhoon และคิวเพลง เก็บในหน่วยความจำและหายเมื่อ restart
-
-คิวเพลงใช้ `MusicQueue` ซึ่งจำกัด 200 เพลงต่อ Server การเพิ่มหลายเพลงตรวจ capacity
-ก่อนและเพิ่มทั้งชุดแบบ atomic ส่วนคำสั่ง remove/shuffle/clear เรียกผ่าน queue API
-แทนการแทนที่ `deque` จาก Cog โดยตรง
+- ประวัติแชท Typhoon เก็บในหน่วยความจำและหายเมื่อ restart
 
 ไฟล์ `data/dashboard.json`, `data/deals_notifier.json` และ `data/x_notifier.json`
 เป็นรูปแบบเดิมเท่านั้น เมื่อเริ่มบอทระบบจะนำเข้าข้อมูลที่หา Server ต้นทางได้เข้าสู่
@@ -140,7 +134,7 @@ workers เริ่มเมื่อ Cog ถูกโหลดและรอ 
 - `/ask` และ `/draw` มี per-user cooldown; AI Context Menu จำกัด 3 ครั้งต่อนาที
 - `/x-setup`, `/deals-setup`, `/dashboard-setup` ต้องมี `Manage Channels`
 - `/digest setup`, `/digest disable`, `/settings` ต้องมี `Manage Server`
-- Reminder, Price Alert และ Playlist ตรวจ ownership ตอนอ่านหรือลบข้อมูล
+- Reminder และ Price Alert ตรวจ ownership ตอนอ่านหรือลบข้อมูล
 - `.env`, SQLite และ runtime JSON ถูก ignore และต้องไม่ commit ขึ้น repository
 
 ## รูปแบบ Embed และภาษา

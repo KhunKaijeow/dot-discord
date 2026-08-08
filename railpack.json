@@ -1,14 +1,7 @@
 {
   "$schema": "https://schema.railpack.com",
   "provider": "python",
-  "packages": {
-    "node": "22"
-  },
   "deploy": {
-    "aptPackages": [
-      "ffmpeg",
-      "libopus0"
-    ],
     "startCommand": "python main.py"
   }
 }

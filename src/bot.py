@@ -19,7 +19,6 @@ logger = logging.getLogger("discord.javis")
 
 COG_EXTENSIONS = (
     "src.cogs.help",
-    "src.cogs.music",
     "src.cogs.valorant",
     "src.cogs.stock",
     "src.cogs.weather",
@@ -40,6 +39,7 @@ COG_EXTENSIONS = (
     "src.cogs.privacy",
     "src.cogs.setup_check",
     "src.cogs.ai_tools",
+    "src.cogs.music",
 )
 
 

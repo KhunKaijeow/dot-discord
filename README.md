@@ -1,7 +1,7 @@
 # Javis Discord Bot
 
 บอท Discord แบบอเนกประสงค์ที่ใช้ Slash Commands รองรับการสนทนาด้วย Typhoon AI,
-เล่นเพลงใน Voice Channel, ดูข้อมูลหุ้น/คริปโต/ทองคำ/สภาพอากาศ, ติดตามข่าว
+ดูข้อมูลหุ้น/คริปโต/ทองคำ/สภาพอากาศ, ติดตามข่าว
 และตั้งระบบแจ้งเตือนอัตโนมัติ
 โดยพัฒนาด้วย Python และ `discord.py`
 
@@ -15,7 +15,6 @@
 ## ฟีเจอร์
 
 - สนทนาต่อเนื่องกับ Typhoon AI แยกตามช่อง
-- เล่นเพลงจากชื่อเพลง, YouTube และลิงก์ Spotify (รองรับ YouTube/Spotify Playlist) พร้อมระบบคิวแยกต่อ Server สูงสุด 200 เพลง และระบบบันทึกเพลย์ลิสต์ส่วนตัว (Saved Playlists)
 - ตรวจสอบราคาหุ้น คริปโต และทองคำ พร้อมภาพกราฟเทรนด์ราคา 30 วันและวิเคราะห์ทองคำทางเทคนิค
 - ดูสภาพอากาศและสถานะเซิร์ฟเวอร์ Valorant
 - ดึงหัวข้อข่าว แปลภาษา และสร้างภาพด้วย Together AI (FLUX.1)
@@ -28,7 +27,7 @@
 - Morning Digest แยกห้อง เวลา และ Timezone ได้ต่อ Server
 - Reminder แบบถาวร รองรับวันเวลาจริงและการแจ้งเตือนซ้ำ
 - AI Message Tools ผ่านเมนูคลิกขวา พร้อม rate limit และการป้องกัน prompt injection
-- Admin Control Panel, Bot Health Status และระบบเพลงแบบ Volume/Loop/Shuffle
+- Admin Control Panel และ Bot Health Status
 
 ## Slash Commands
 
@@ -37,22 +36,6 @@
 | `/help` | เปิดรายการคำสั่งแบบ Interactive และเลือกดูตามหมวดหมู่ |
 | `/ask` | สนทนาหรือถามคำถามกับ Typhoon AI |
 | `/reset-chat` | ล้างประวัติการสนทนาของช่องปัจจุบัน |
-| `/playlist-save` | บันทึกเพลงในคิวปัจจุบันเป็นเพลย์ลิสต์ส่วนตัว |
-| `/playlist-load` | โหลดเพลงจากเพลย์ลิสต์ส่วนตัวเข้าสู่คิว |
-| `/playlist-list` | แสดงรายชื่อเพลย์ลิสต์ส่วนตัวทั้งหมดของคุณ |
-| `/playlist-delete` | ลบเพลย์ลิสต์ส่วนตัวของคุณ |
-| `/play` | เล่นเพลงจากชื่อ, YouTube หรือ Spotify |
-| `/pause` | หยุดเพลงชั่วคราว |
-| `/resume` | เล่นเพลงต่อ |
-| `/skip` | ข้ามเพลงปัจจุบัน |
-| `/queue` | แสดงคิวเพลง |
-| `/stop` | หยุดเพลง ล้างคิว และออกจาก Voice Channel |
-| `/now-playing` | ดูเพลงปัจจุบัน ระดับเสียง และโหมด Loop |
-| `/volume` | ปรับระดับเสียง 0–100% |
-| `/loop` | เล่นซ้ำเพลงปัจจุบันหรือทั้งคิว |
-| `/shuffle` | สุ่มเพลงที่รอในคิว |
-| `/remove` | นำเพลงออกจากคิวตามลำดับ |
-| `/clear-queue` | ล้างคิวโดยไม่หยุดเพลงปัจจุบัน |
 | `/stock` | ดูข้อมูลหุ้นจากสัญลักษณ์ เช่น `AAPL` หรือ `PTT.BK` |
 | `/stock-popular` | แสดงตัวอย่างหุ้นยอดนิยม |
 | `/crypto` | ดูราคาคริปโต เช่น `BTC`, `ETH` หรือ `SOL` |
@@ -80,7 +63,7 @@
 | `/dashboard-update` | สั่งอัปเดตข้อมูลบน Dashboard ทันที |
 | `/dashboard-disable` | ปิด Daily Dashboard ของ Server โดยเก็บข้อความเดิมไว้ |
 | `/my-data` | ดูจำนวนข้อมูลส่วนตัวที่บอทบันทึกไว้ |
-| `/my-data-delete` | ลบ Reminder, Price Alert และ Saved Playlist ของผู้เรียก |
+| `/my-data-delete` | ลบ Reminder และ Price Alert ของผู้เรียก |
 | `/price-alert add` | เพิ่มเงื่อนไขแจ้งเตือนราคาหุ้น คริปโต หรือทอง |
 | `/price-alert list` | ดู Price Alert ของผู้ใช้ |
 | `/price-alert remove` | ลบ Price Alert ด้วย ID |
@@ -114,28 +97,20 @@
 ตามตารางข้างต้น หากต้องการข้อมูลล่าสุดก่อนถึงรอบถัดไปให้ใช้ `/dashboard-update`
 บอทต้องออนไลน์ในเวลาที่กำหนดจึงจะทำงานตามรอบได้
 
-Reminder, Price Alert, Morning Digest, Saved Playlists, Dashboard และการตั้งค่าระบบ
+Reminder, Price Alert, Morning Digest, Dashboard และการตั้งค่าระบบ
 แจ้งเตือนบันทึกใน `data/javis.db` แบบแยกตาม Server จึงไม่หายเมื่อบอทรีสตาร์ต
-ส่วนประวัติแชทและคิวเพลงปกติยังเก็บในหน่วยความจำ
+ส่วนประวัติแชทเก็บในหน่วยความจำ
 
 เมื่อเริ่มบอท ระบบจะอัปเกรด SQLite schema ตามลำดับเวอร์ชันให้อัตโนมัติและบันทึก
 ประวัติไว้ใน `schema_migrations` โดย migration ที่ล้มเหลวจะถูก rollback ทั้งเวอร์ชัน
 แนะนำให้สำรอง `data/javis.db` ก่อน deploy รุ่นที่มีการเปลี่ยน schema
 
-การเพิ่ม YouTube/Spotify Playlist และ Saved Playlist เข้าคิวเป็นแบบ atomic: หาก
-พื้นที่คิวไม่พอ ระบบจะไม่เพิ่มเพลงเพียงบางส่วนและจะแจ้งจำนวนช่องว่างที่เหลือ
-
 ## สิ่งที่ต้องมี
 
 - Python 3.12 หรือใหม่กว่า
-- FFmpeg และ Opus สำหรับระบบ Voice
-- Deno 2.3+ หรือ Node.js 22+ สำหรับให้ yt-dlp เล่นเพลงจาก YouTube
-- `yt-dlp-ejs` สำหรับแก้ JavaScript challenge ของ YouTube (ติดตั้งอัตโนมัติจาก
-  `yt-dlp[default]` ใน `requirements.txt`)
 - Discord Bot Token
 - Typhoon API Key
 - Together AI API Key (จำเป็นสำหรับคำสั่งวาดภาพ)
-- Spotify Client ID และ Client Secret (ไม่บังคับ - จำเป็นเฉพาะโหลด Spotify Playlist)
 - Valorant API Key (ไม่บังคับ)
 - Prokerala API Client ID และ Client Secret (จำเป็นสำหรับคำสั่งดูดวง)
 
@@ -158,19 +133,6 @@ pip install -r requirements.txt
 .venv\Scripts\Activate.ps1
 ```
 
-ติดตั้ง FFmpeg และ Opus บน macOS:
-
-```bash
-brew install ffmpeg opus
-```
-
-บน Ubuntu/Debian:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ffmpeg libopus0
-```
-
 ## ตั้งค่าตัวแปรแวดล้อม
 
 คัดลอกไฟล์ตัวอย่าง:
@@ -185,9 +147,6 @@ cp .env.example .env
 DISCORD_TOKEN=your_discord_bot_token
 TYPHOON_API_KEY=your_typhoon_api_key
 TOGETHER_API_KEY=your_together_api_key
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-YOUTUBE_COOKIES_BASE64=base64_encoded_netscape_cookie_file
 VALORANT_API_KEY=your_valorant_api_key
 PROKERALA_CLIENT_ID=your_prokerala_client_id
 PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
@@ -198,32 +157,11 @@ PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
 | `DISCORD_TOKEN` | ใช่ | [Discord Developer Portal](https://discord.com/developers/applications) |
 | `TYPHOON_API_KEY` | ใช่ | [OpenTyphoon](https://opentyphoon.ai/) |
 | `TOGETHER_API_KEY` | สำหรับ /draw | [Together AI](https://together.ai/) |
-| `SPOTIFY_CLIENT_ID` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
-| `SPOTIFY_CLIENT_SECRET` | สำหรับ Spotify Playlist | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
-| `YOUTUBE_COOKIES_BASE64` | เมื่อ Hosting ถูก YouTube ปฏิเสธ | Cookie file รูปแบบ Netscape ที่เข้ารหัส Base64 |
 | `VALORANT_API_KEY` | ไม่ | [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) |
 | `PROKERALA_CLIENT_ID` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
 | `PROKERALA_CLIENT_SECRET` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
 
 ไฟล์ `.env` ถูก ignore ไว้แล้ว ห้าม commit token หรือ API key ขึ้น repository
-
-### แก้ YouTube `Sign in to confirm you're not a bot` บน Hosting
-
-หาก Railway logs แสดง `Sign in to confirm you're not a bot` หรือ YouTube ตอบ
-`HTTP 403` ให้ export เฉพาะ cookies ของ `youtube.com` เป็นไฟล์ Netscape
-`youtube-cookies.txt` จาก session แยก แล้วแปลงเป็น Base64 ด้วยคำสั่งนี้บนเครื่องส่วนตัว:
-
-```bash
-python3 -c "import base64,pathlib; print(base64.b64encode(pathlib.Path('youtube-cookies.txt').read_bytes()).decode())"
-```
-
-คัดลอกผลลัพธ์ทั้งหมดไปใส่ Railway Variable ชื่อ
-`YOUTUBE_COOKIES_BASE64` แล้ว Redeploy จากนั้น `/setup-check` ต้องแสดง
-`YouTube Cookies: โหลดจาก Railway Secret แล้ว`
-
-ค่า Base64 ยังคงเป็นข้อมูลลับ ห้ามส่งใน Discord, log หรือ commit ลง Git
-แนะนำให้ใช้บัญชี YouTube แยก เพราะ YouTube อาจจำกัดหรือระงับบัญชีที่ใช้กับ
-เครื่องมืออัตโนมัติ และ cookies อาจหมดอายุจนต้องสร้างค่าใหม่
 
 คำสั่ง `/horoscope` ใช้ Advanced Daily Prediction แบบครบ 4 หมวด ซึ่งใช้
 1,000 Prokerala credits ต่อราศีต่อวัน บอทจะ cache ผลไว้จนเปลี่ยนวันเพื่อลด
@@ -267,18 +205,13 @@ python -m unittest discover -s tests -v
 ```
 
 ชุดทดสอบครอบคลุม persistence/ownership ของ Reminder และ Price Alert,
-allowlist สำหรับการตั้งค่าและสัญลักษณ์ตลาด, rate limit ของ AI Message Tools
-CRUD ของ Saved Playlists และ runtime/fallback ของระบบเพลง
-
-หากระบบเพลงใช้งานไม่ได้ ให้เริ่มจาก `/setup-check` และตรวจว่า FFmpeg,
-JavaScript Runtime และ yt-dlp EJS แสดงสถานะพร้อม รวมถึงให้สิทธิ์ View Channel,
-Connect และ Speak แก่บอทในห้องเสียง
+allowlist สำหรับการตั้งค่าและสัญลักษณ์ตลาด และ rate limit ของ AI Message Tools
 
 ## Deploy บน Railway
 
 1. สร้างโปรเจกต์ใหม่ใน Railway และเลือก **Deploy from GitHub repo**
 2. เลือก repository นี้
-3. เพิ่ม `DISCORD_TOKEN`, `TYPHOON_API_KEY`, `TOGETHER_API_KEY`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `VALORANT_API_KEY`,
+3. เพิ่ม `DISCORD_TOKEN`, `TYPHOON_API_KEY`, `TOGETHER_API_KEY`, `VALORANT_API_KEY`,
    `PROKERALA_CLIENT_ID` และ `PROKERALA_CLIENT_SECRET` ในหน้า
    **Variables**
 4. กำหนด Start Command เป็น:
@@ -294,10 +227,6 @@ Connect และ Speak แก่บอทในห้องเสียง
 ให้ผูก Persistent Volume กับโฟลเดอร์ `data/` ตามการตั้งค่าของแพลตฟอร์มที่ใช้
 
 บอทเป็น worker ที่เชื่อมต่อ Discord Gateway โดยตรง จึงไม่ต้องมี HTTP health check
-Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg, Opus และ Node.js
-สำหรับระบบเพลงให้อัตโนมัติ โดยไม่ต้องใช้ Docker
-
-ลิงก์ Spotify รองรับทั้งเพลงเดี่ยว (`/track/...`) และเพลย์ลิสต์ (`/playlist/...`) โดยเพลงเดี่ยวจะอ่านข้อมูลและค้นหาบน YouTube ได้ทันที ส่วนเพลย์ลิสต์จะใช้ Spotify API Credentials ในการดึงข้อมูลเพลงทั้งหมดเข้ามาในคิว
 
 ## โครงสร้างโปรเจกต์
 
@@ -316,7 +245,6 @@ Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg
     ├── config.py            # Environment configuration
     ├── ui.py                # ชุดสีและรูปแบบ Embed กลาง
     ├── cogs/                # Slash commands แยกตามฟีเจอร์
-    │   ├── music.py
     │   ├── stock.py
     │   ├── weather.py
     │   └── ...
@@ -339,9 +267,6 @@ Railway จะอ่าน `railpack.json` และติดตั้ง FFmpeg
   `TYPHOON_API_KEY`
 - `LoginFailure: Improper token` — สร้างหรือคัดลอก Discord Bot Token ใหม่
 - Slash Commands ไม่แสดง — ตรวจ scope `applications.commands` และรอให้ Discord sync
-- เล่นเพลงไม่ได้ — ตรวจว่า FFmpeg/Opus และ Deno 2.3+ หรือ Node.js 22+
-  ติดตั้งแล้ว ห้องเสียงต้องมี View Channel/Connect/Speak และห้อง
-  ข้อความต้องมี View Channel/Send Messages/Embed Links
 - คำสั่ง Valorant ใช้ไม่ได้ — ตรวจ `VALORANT_API_KEY`; ฟีเจอร์อื่นยังใช้งานได้ตามปกติ
 - คำสั่งดูดวงใช้ไม่ได้ — ตรวจ Prokerala credentials และเครดิตคงเหลือของบัญชี
 - Dashboard ไม่อัปเดต — ตรวจว่าบอทออนไลน์เวลา 08:00 น. ตามเวลาไทย,

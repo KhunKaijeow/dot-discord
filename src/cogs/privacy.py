@@ -14,9 +14,7 @@ from ..ui import EmbedColor, make_embed
 def format_counts(counts: dict[str, int]) -> str:
     return (
         f"Reminder `{counts['reminders']}` รายการ\n"
-        f"Price Alert `{counts['alerts']}` รายการ\n"
-        f"Saved Playlist `{counts['playlists']}` รายการ "
-        f"(`{counts['playlist_tracks']}` เพลง)"
+        f"Price Alert `{counts['alerts']}` รายการ"
     )
 
 
@@ -43,20 +41,15 @@ class PrivacyCog(commands.Cog):
         embed.add_field(name="⏰ Reminder", value=f"`{counts['reminders']}`", inline=True)
         embed.add_field(name="🔔 Price Alert", value=f"`{counts['alerts']}`", inline=True)
         embed.add_field(
-            name="🎵 Saved Playlist",
-            value=f"`{counts['playlists']}` รายการ\n`{counts['playlist_tracks']}` เพลง",
-            inline=True,
-        )
-        embed.add_field(
             name="ℹ️ ข้อมูลชั่วคราว",
-            value="ประวัติ AI และคิวเพลงไม่ถูกเก็บในฐานข้อมูล",
+            value="ประวัติ AI ไม่ถูกเก็บในฐานข้อมูล",
             inline=False,
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(
         name="my-data-delete",
-        description="ลบ Reminder, Price Alert และ Saved Playlist ทั้งหมดของคุณ",
+        description="ลบ Reminder และ Price Alert ทั้งหมดของคุณ",
     )
     @app_commands.describe(confirm="เลือก True เพื่อยืนยันว่าต้องการลบข้อมูลถาวร")
     async def my_data_delete(
@@ -90,11 +83,6 @@ class PrivacyCog(commands.Cog):
         )
         embed.add_field(name="⏰ Reminder", value=f"`{removed['reminders']}`", inline=True)
         embed.add_field(name="🔔 Price Alert", value=f"`{removed['alerts']}`", inline=True)
-        embed.add_field(
-            name="🎵 Saved Playlist",
-            value=f"`{removed['playlists']}` รายการ\n`{removed['playlist_tracks']}` เพลง",
-            inline=True,
-        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 

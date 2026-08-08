@@ -10,7 +10,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from .music import EJS_AVAILABLE, FFMPEG_EXECUTABLE, YTDL_OPTIONS, music_states
 from ..ui import EmbedColor, make_embed
 
 
@@ -22,7 +21,6 @@ class HealthCog(commands.Cog):
     async def status_command(self, interaction: discord.Interaction):
         uptime = datetime.now(timezone.utc) - self.bot.started_at
         counts = await asyncio.to_thread(self.bot.database.counts)
-        queued = sum(len(state.queue) for state in music_states.values())
         embed = make_embed(
             self.bot,
             "Status",
@@ -41,22 +39,11 @@ class HealthCog(commands.Cog):
             ),
             inline=False,
         )
-        embed.add_field(
-            name="🎵 ระบบเพลง",
-            value=(
-                f"เพลงในคิว `{queued}`  •  "
-                f"FFmpeg `{'พร้อม' if FFMPEG_EXECUTABLE else 'ยังไม่พร้อม'}`  •  "
-                f"EJS `{'พร้อม' if EJS_AVAILABLE else 'ยังไม่พร้อม'}`"
-            ),
-            inline=False,
-        )
         if interaction.permissions.manage_guild:
-            js_ready = bool(YTDL_OPTIONS["js_runtimes"])
             embed.add_field(
                 name="🛠️ Runtime สำหรับแอดมิน",
                 value=(
                     f"Python `{platform.python_version()}` • "
-                    f"JS `{'พร้อม' if js_ready else 'ยังไม่พร้อม'}` • "
                     f"Database `v{counts['schema_version']}`"
                 ),
                 inline=False,

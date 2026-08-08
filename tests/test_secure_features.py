@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-import asyncio
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, MagicMock
@@ -88,43 +87,6 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.database.seen_notifier_items(1, "unknown")
 
-    def test_playlist_crud_and_limits(self):
-        user_id = 42
-        tracks = [
-            ("Track 1", "https://youtube.com/watch?v=1", "YouTube"),
-            ("Track 2", "https://youtube.com/watch?v=2", "Spotify → YouTube")
-        ]
-        
-        # Test saving
-        self.database.save_playlist(user_id, "my_list", tracks)
-        self.assertEqual(self.database.count_user_playlists(user_id), 1)
-        
-        # Test loading
-        loaded_tracks = self.database.load_playlist(user_id, "my_list")
-        self.assertEqual(len(loaded_tracks), 2)
-        self.assertEqual(loaded_tracks[0]["title"], "Track 1")
-        self.assertEqual(loaded_tracks[1]["title"], "Track 2")
-        self.assertEqual(loaded_tracks[0]["requested_via"], "YouTube")
-        
-        # Test listing
-        playlists = self.database.list_playlists(user_id)
-        self.assertEqual(len(playlists), 1)
-        self.assertEqual(playlists[0]["name"], "my_list")
-        self.assertEqual(playlists[0]["track_count"], 2)
-        
-        # Test saving overrides (overwriting playlist)
-        new_tracks = [("Track 3", "https://youtube.com/watch?v=3", "YouTube")]
-        self.database.save_playlist(user_id, "my_list", new_tracks)
-        self.assertEqual(self.database.count_user_playlists(user_id), 1) # count remains 1
-        loaded_tracks = self.database.load_playlist(user_id, "my_list")
-        self.assertEqual(len(loaded_tracks), 1) # now only 1 track
-        self.assertEqual(loaded_tracks[0]["title"], "Track 3")
-        
-        # Test deleting
-        self.assertTrue(self.database.delete_playlist(user_id, "my_list"))
-        self.assertEqual(self.database.count_user_playlists(user_id), 0)
-        self.assertFalse(self.database.delete_playlist(user_id, "my_list")) # delete again should be False
-
     def test_delete_user_data_is_atomic_and_isolated(self):
         due_at = datetime.now(timezone.utc) + timedelta(hours=1)
         for user_id in (10, 20):
@@ -145,11 +107,6 @@ class DatabaseTests(unittest.TestCase):
                 100.0,
                 False,
             )
-            self.database.save_playlist(
-                user_id,
-                "private",
-                [(f"track-{user_id}", "https://youtube.com/watch?v=1", "YouTube")],
-            )
         self.database.update_automation_settings(1, deals_channel_id=999)
 
         removed = self.database.delete_user_data(10)
@@ -159,8 +116,6 @@ class DatabaseTests(unittest.TestCase):
             {
                 "reminders": 1,
                 "alerts": 1,
-                "playlists": 1,
-                "playlist_tracks": 1,
             },
         )
         self.assertEqual(
@@ -168,8 +123,6 @@ class DatabaseTests(unittest.TestCase):
             {
                 "reminders": 0,
                 "alerts": 0,
-                "playlists": 0,
-                "playlist_tracks": 0,
             },
         )
         self.assertEqual(
@@ -177,8 +130,6 @@ class DatabaseTests(unittest.TestCase):
             {
                 "reminders": 1,
                 "alerts": 1,
-                "playlists": 1,
-                "playlist_tracks": 1,
             },
         )
         self.assertEqual(
@@ -215,19 +166,19 @@ class ValidationTests(unittest.TestCase):
 
         embed = make_notice_embed(
             bot,
-            "Music",
+            "Test",
             "เรียบร้อยแล้ว",
             color=EmbedColor.SUCCESS,
         )
 
-        self.assertEqual(embed.author.name, "Javis • Music")
+        self.assertEqual(embed.author.name, "Javis • Test")
         self.assertEqual(embed.description, "เรียบร้อยแล้ว")
         self.assertEqual(embed.title, "✅ ดำเนินการเรียบร้อย")
         self.assertEqual(embed.color.value, EmbedColor.SUCCESS)
 
         error_embed = make_notice_embed(
             bot,
-            "Music",
+            "Test",
             "😅 โหลดข้อมูลไม่สำเร็จ",
             color=EmbedColor.ERROR,
         )
@@ -306,23 +257,6 @@ class ValidationTests(unittest.TestCase):
         self.assertFalse(cog._rate_limited(1))
         self.assertFalse(cog._rate_limited(1))
         self.assertTrue(cog._rate_limited(1))
-
-    def test_spotify_playlist_resolver_missing_credentials(self):
-        from src.cogs.music import resolve_tracks, MusicError
-        from unittest.mock import patch
-        
-        user = MagicMock(spec=discord.User)
-        with patch("src.cogs.music.SPOTIFY_CLIENT_ID", None), patch("src.cogs.music.SPOTIFY_CLIENT_SECRET", None):
-            with self.assertRaises(MusicError) as context:
-                asyncio.run(
-                    resolve_tracks(
-                        "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGo3712j",
-                        user,
-                        MagicMock(),
-                    )
-                )
-            self.assertIn("บอทไม่ได้ตั้งค่าตัวแปร `SPOTIFY_CLIENT_ID`", str(context.exception))
-
 
 class NotifierDeliveryTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

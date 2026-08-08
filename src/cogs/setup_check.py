@@ -13,21 +13,12 @@ from discord.ext import commands
 from ..config import (
     PROKERALA_CLIENT_ID,
     PROKERALA_CLIENT_SECRET,
-    SPOTIFY_CLIENT_ID,
-    SPOTIFY_CLIENT_SECRET,
     TOGETHER_API_KEY,
     TYPHOON_API_KEY,
     VALORANT_API_KEY,
 )
 from ..services.database_migrations import LATEST_SCHEMA_VERSION
 from ..ui import EmbedColor, make_embed
-from .music import (
-    EJS_AVAILABLE,
-    FFMPEG_EXECUTABLE,
-    YOUTUBE_COOKIE_ERROR,
-    YOUTUBE_COOKIE_FILE,
-    YTDL_OPTIONS,
-)
 
 
 logger = logging.getLogger("javis.setup_check")
@@ -52,10 +43,6 @@ def _is_configured(*values: str | None) -> bool:
 def permission_checks(interaction: discord.Interaction) -> list[CheckItem]:
     user_permissions = interaction.permissions
     app_permissions = interaction.app_permissions
-    bot_member = interaction.guild.me if interaction.guild else None
-    guild_permissions = (
-        bot_member.guild_permissions if bot_member else discord.Permissions.none()
-    )
     return [
         CheckItem(
             "สิทธิ์ผู้เรียก",
@@ -83,27 +70,10 @@ def permission_checks(interaction: discord.Interaction) -> list[CheckItem]:
             "พร้อม" if app_permissions.attach_files else "กราฟและรูปภาพอาจส่งไม่ได้",
             required=False,
         ),
-        CheckItem(
-            "Connect Voice",
-            guild_permissions.connect,
-            (
-                "พร้อมระดับ Server"
-                if guild_permissions.connect
-                else "Role บอทยังไม่มีสิทธิ์ Connect"
-            ),
-            required=False,
-        ),
-        CheckItem(
-            "Speak",
-            guild_permissions.speak,
-            "พร้อมระดับ Server" if guild_permissions.speak else "Role บอทยังไม่มีสิทธิ์ Speak",
-            required=False,
-        ),
     ]
 
 
 def integration_checks() -> list[CheckItem]:
-    spotify_ready = _is_configured(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
     horoscope_ready = _is_configured(
         PROKERALA_CLIENT_ID,
         PROKERALA_CLIENT_SECRET,
@@ -118,12 +88,6 @@ def integration_checks() -> list[CheckItem]:
             "Together AI",
             _is_configured(TOGETHER_API_KEY),
             "ตั้งค่าแล้ว (ยังไม่ได้ทดสอบ key)" if TOGETHER_API_KEY else "ยังไม่ได้ตั้งค่า",
-            required=False,
-        ),
-        CheckItem(
-            "Spotify Playlist",
-            spotify_ready,
-            "ตั้งค่าครบ" if spotify_ready else "ยังตั้งค่าไม่ครบ",
             required=False,
         ),
         CheckItem(
@@ -190,46 +154,8 @@ class SetupCheckCog(commands.Cog):
                 "Standard Intents เพียงพอสำหรับ Slash Commands ปัจจุบัน",
             ),
         ]
-        runtime = [
-            CheckItem(
-                "FFmpeg",
-                bool(FFMPEG_EXECUTABLE),
-                "พร้อมเล่นเสียง" if FFMPEG_EXECUTABLE else "ไม่พบ executable",
-                required=False,
-            ),
-            CheckItem(
-                "JavaScript Runtime",
-                bool(YTDL_OPTIONS["js_runtimes"]),
-                (
-                    "พร้อมสำหรับ YouTube"
-                    if YTDL_OPTIONS["js_runtimes"]
-                    else "ไม่พบ Deno/Node/QuickJS"
-                ),
-                required=False,
-            ),
-            CheckItem(
-                "yt-dlp EJS",
-                EJS_AVAILABLE,
-                "พร้อมแก้ YouTube challenge" if EJS_AVAILABLE else "ไม่พบ yt-dlp-ejs",
-                required=False,
-            ),
-            CheckItem(
-                "YouTube Cookies",
-                bool(YOUTUBE_COOKIE_FILE),
-                (
-                    "โหลดจาก Railway Secret แล้ว"
-                    if YOUTUBE_COOKIE_FILE
-                    else (
-                        "YOUTUBE_COOKIES_BASE64 ไม่ถูกต้อง"
-                        if YOUTUBE_COOKIE_ERROR
-                        else "ยังไม่ได้ตั้งค่า (YouTube อาจปฏิเสธ IP ของ Hosting)"
-                    )
-                ),
-                required=False,
-            ),
-        ]
         integrations = integration_checks()
-        all_items = [*permissions, *core, *runtime, *integrations]
+        all_items = [*permissions, *core, *integrations]
         failures = [item for item in all_items if item.required and not item.ok]
         warnings = [item for item in all_items if not item.required and not item.ok]
 
@@ -261,11 +187,6 @@ class SetupCheckCog(commands.Cog):
         embed.add_field(
             name="🧩 Core",
             value="\n".join(item.render() for item in core),
-            inline=False,
-        )
-        embed.add_field(
-            name="🎵 Voice Runtime",
-            value="\n".join(item.render() for item in runtime),
             inline=False,
         )
         embed.add_field(
