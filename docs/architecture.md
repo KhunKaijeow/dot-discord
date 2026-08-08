@@ -10,7 +10,8 @@ main.py
   └── src.bot.JavisBot
         ├── src.config
         ├── src.cogs.*
-        │     └── src.services.*
+        │     ├── src.services.*
+        │     └── src.music.*
         └── src.services.database.Database
               └── data/javis.db
 ```
@@ -34,6 +35,7 @@ main.py
 | `src/ui.py` | ชุดสี, author treatment และ factory สำหรับ Embed แบบไม่มี footer |
 | `src/cogs/` | Discord UI, Slash Commands และ background workers แยกตามฟีเจอร์ |
 | `src/services/` | API clients, market data, chart, translation และ SQLite repository |
+| `src/music/` | Spotify/YouTube source resolution, queue model และ voice player ต่อ Server |
 | `tests/` | Unit tests สำหรับ persistence, validation, permission และ rate limit |
 | `data/` | Runtime state ที่ไม่ควร commit เช่น SQLite และ dashboard state |
 
@@ -51,6 +53,7 @@ circular import
 | Utility | `help.py`, `weather.py`, `valorant.py`, `horoscope.py`, `privacy.py` | เมนูคำสั่งแบบ Interactive, wttr.in, HenrikDev, Prokerala, Wikimedia และคำสั่งจัดการข้อมูลส่วนตัว |
 | Automation | `reminder.py`, `dashboard.py`, `morning_digest.py`, `x_notifier.py`, `deals_notifier.py` | งานตามเวลาและการแจ้งเตือนอัตโนมัติ |
 | Administration | `admin.py`, `health.py`, `setup_check.py` | การตั้งค่าระดับ Server, deployment diagnostics และข้อมูลสุขภาพของ bot |
+| Music | `cogs/music.py`, `music/sources.py`, `music/player.py` | Slash Commands, Spotify/YouTube resolver และ voice queue แยกต่อ Server |
 
 การเชื่อมต่อ HTTP ที่โค้ดเรียกโดยตรงผ่าน `services/http_client.py` โดย `JavisBot`
 สร้าง client หนึ่งครั้งก่อนโหลด Cog และปิดในช่วง shutdown ฝั่ง async ใช้
@@ -58,6 +61,12 @@ circular import
 `requests.Session` แยกตาม worker thread ผ่าน client เดียวกัน เพื่อไม่ block Gateway
 ตัว client นี้เก็บใน `bot.external_http` เพื่อไม่ชนกับ `bot.http` ที่ `discord.py`
 สงวนไว้ใช้ login และเรียก Discord REST API ภายใน
+
+ระบบเพลงแบ่งเป็น 3 ขอบเขต: `music/models.py` นิยาม queue item,
+`music/sources.py` อ่าน Spotify metadata และ resolve YouTube stream ด้วย `yt-dlp`,
+ส่วน `music/player.py` ดูแล FFmpeg, voice connection และ worker แยกตาม Server
+Spotify URL ไม่ได้ stream เสียงจาก Spotify โดยตรง แต่เปลี่ยน metadata เป็นคำค้นหา
+YouTube และ resolve stream ใหม่ก่อนเล่นทุกเพลงเพื่อลดปัญหา URL หมดอายุ
 
 `services/typhoon.py` เป็น implementation หลักและเรียก OpenTyphoon endpoint ด้วย
 โมเดล `typhoon-v2.5-30b-a3b-instruct` ส่วน `services/gemini.py` เป็น compatibility
@@ -124,6 +133,7 @@ redeploy และควรใช้เพียง 1 process/replica เพร�
 | sheapgamer notifier | ทุก 5 นาที | SQLite และ rss.app feed |
 | Game deals | ทุก 1 ชั่วโมง | SQLite และ GamerPower API |
 | Daily Dashboard | 08:00 น. `Asia/Bangkok` | SQLite, Yahoo Finance และ Google News RSS |
+| Music player | เมื่อมีเพลงในคิว; timeout 3 นาที | หน่วยความจำ, Discord Voice, YouTube/Spotify |
 
 workers เริ่มเมื่อ Cog ถูกโหลดและรอ `bot.wait_until_ready()` ก่อนทำงานกับ Discord
 

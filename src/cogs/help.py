@@ -87,6 +87,18 @@ HELP_CATEGORIES = (
         ),
     ),
     HelpCategory(
+        "music",
+        "เพลง",
+        "🎵",
+        "เล่นเพลงจาก YouTube และ Spotify พร้อมจัดการคิวในห้องเสียง",
+        (
+            ("/play", "ค้นหาหรือเพิ่ม YouTube/Spotify link เข้าคิว"),
+            ("/pause · /resume · /skip", "ควบคุมเพลงที่กำลังเล่น"),
+            ("/queue · /nowplaying", "ดูคิวและเพลงปัจจุบัน"),
+            ("/shuffle · /stop", "สุ่มคิวหรือหยุดและออกจากห้องเสียง"),
+        ),
+    ),
+    HelpCategory(
         "management",
         "การตั้งค่าและความเป็นส่วนตัว",
         "⚙️",

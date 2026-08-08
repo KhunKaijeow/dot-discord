@@ -150,6 +150,9 @@ TOGETHER_API_KEY=your_together_api_key
 VALORANT_API_KEY=your_valorant_api_key
 PROKERALA_CLIENT_ID=your_prokerala_client_id
 PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+YOUTUBE_COOKIES_BASE64=optional_base64_encoded_cookies_txt
 ```
 
 | ตัวแปร | จำเป็น | แหล่งที่มา |
@@ -160,6 +163,9 @@ PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
 | `VALORANT_API_KEY` | ไม่ | [HenrikDev Dashboard](https://api.henrikdev.xyz/dashboard/) |
 | `PROKERALA_CLIENT_ID` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
 | `PROKERALA_CLIENT_SECRET` | เฉพาะดูดวง | [Prokerala Astrology API](https://api.prokerala.com/) |
+| `SPOTIFY_CLIENT_ID` | สำหรับลิงก์ Spotify | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
+| `SPOTIFY_CLIENT_SECRET` | สำหรับลิงก์ Spotify | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
+| `YOUTUBE_COOKIES_BASE64` | เฉพาะเมื่อ YouTube บล็อก IP | ไฟล์ `cookies.txt` รูปแบบ Netscape ที่เข้ารหัส Base64 |
 
 ไฟล์ `.env` ถูก ignore ไว้แล้ว ห้าม commit token หรือ API key ขึ้น repository
 
@@ -181,6 +187,20 @@ PROKERALA_CLIENT_SECRET=your_prokerala_client_secret
 5. เปิด URL ที่สร้างขึ้นเพื่อเชิญบอทเข้าเซิร์ฟเวอร์
 
 โปรเจกต์ใช้ Slash Commands เป็นหลัก จึงไม่จำเป็นต้องเปิด Message Content Intent
+
+## เล่นเพลงจาก YouTube และ Spotify
+
+ใช้ `/play` ตามด้วยชื่อเพลง, YouTube URL หรือ Spotify URL ชนิด track, album
+หรือ playlist ตัวบอทจะเล่นเสียง YouTube โดยตรง ส่วนลิงก์ Spotify จะอ่าน metadata
+จาก Spotify Web API แล้วค้นหาเพลงเดียวกันบน YouTube เพื่อเล่นใน Discord
+
+คำสั่งที่รองรับ: `/play`, `/pause`, `/resume`, `/skip`, `/stop`, `/queue`,
+`/nowplaying` และ `/shuffle` บอทต้องมีสิทธิ์ Connect และ Speak ในห้องเสียง
+และ deployment ต้องมี FFmpeg
+
+Spotify Development Mode ปี 2026 จำกัดการอ่าน playlist บางรายการตามสิทธิ์ของแอป
+หาก track หรือ album ใช้ได้แต่ playlist บางอันใช้ไม่ได้ ให้ตรวจสิทธิ์ของ Spotify app
+และสถานะบัญชีเจ้าของแอป
 
 ## เริ่มใช้งาน
 
@@ -273,6 +293,11 @@ allowlist สำหรับการตั้งค่าและสัญล�
   ข้อความเดิมยังอยู่ และบอทมีสิทธิ์ View Channel, Send Messages และ Embed Links
 - ระบบแจ้งเตือนไม่ส่งข้อความ — ตรวจห้องที่ตั้งไว้ สิทธิ์ของบอท และลองตั้งค่าห้องใหม่
   ด้วย `/x-setup` หรือ `/deals-setup`
+- `ffmpeg was not found` — Redeploy จาก source ล่าสุด; `railpack.json` จะติดตั้ง
+  FFmpeg ลงใน runtime image ให้อัตโนมัติ
+- YouTube แจ้ง `Sign in to confirm you're not a bot` — export `cookies.txt` รูปแบบ
+  Netscape, เข้ารหัสด้วย Base64 แล้วตั้งค่า Railway variable ชื่อ
+  `YOUTUBE_COOKIES_BASE64`; ห้าม commit ไฟล์ cookie ลง repository
 
 ## ความปลอดภัย
 
