@@ -70,18 +70,19 @@ class SpotifyService:
                     logger.error("Spotify API error fetching track %s: HTTP %s", track_id, resp.status)
                     return None
                 data = await resp.json()
-                artists = ", ".join([a.get("name") for a in data.get("artists", [])])
+                artists = ", ".join([a.get("name") for a in data.get("artists", []) if isinstance(a, dict) and a.get("name")])
                 
-                # Get album image/thumbnail if available
                 thumbnail = None
                 album = data.get("album")
-                if album and album.get("images"):
-                    thumbnail = album.get("images")[0].get("url")
+                if isinstance(album, dict) and album.get("images"):
+                    images = album.get("images")
+                    if isinstance(images, list) and len(images) > 0 and isinstance(images[0], dict):
+                        thumbnail = images[0].get("url")
 
                 return {
-                    "title": data.get("name"),
+                    "title": data.get("name", "Unknown Title"),
                     "artist": artists,
-                    "duration": data.get("duration_ms", 0) / 1000,
+                    "duration": (data.get("duration_ms") or 0) / 1000,
                     "url": f"https://open.spotify.com/track/{track_id}",
                     "thumbnail": thumbnail,
                     "spotify_id": track_id
@@ -91,7 +92,7 @@ class SpotifyService:
             return None
 
     async def get_playlist_tracks(self, playlist_id: str) -> List[Dict[str, Any]]:
-        """Fetch metadata for tracks in a Spotify playlist (limited to 100 tracks to avoid timeouts)."""
+        """Fetch metadata for tracks in a Spotify playlist (up to 200 tracks)."""
         token = await self.get_token()
         if not token:
             return []
@@ -100,47 +101,62 @@ class SpotifyService:
         headers = {"Authorization": f"Bearer {token}"}
         params = {"limit": 100}
 
-        tracks = []
-        try:
-            async with self.http_client.get(url, headers=headers, params=params) as resp:
-                if resp.status != 200:
-                    logger.error("Spotify API error fetching playlist %s: HTTP %s", playlist_id, resp.status)
-                    return []
-                data = await resp.json()
-                items = data.get("items", [])
-                for item in items:
-                    track = item.get("track")
-                    if not track:
-                        continue
-                    artists = ", ".join([a.get("name") for a in track.get("artists", [])])
-                    
-                    thumbnail = None
-                    album = track.get("album")
-                    if album and album.get("images"):
-                        thumbnail = album.get("images")[0].get("url")
+        tracks: List[Dict[str, Any]] = []
+        next_url: Optional[str] = url
+        pages_fetched = 0
 
-                    tracks.append({
-                        "title": track.get("name"),
-                        "artist": artists,
-                        "duration": track.get("duration_ms", 0) / 1000,
-                        "url": f"https://open.spotify.com/track/{track.get('id')}" if track.get("id") else "",
-                        "thumbnail": thumbnail,
-                        "spotify_id": track.get("id")
-                    })
+        try:
+            while next_url and pages_fetched < 2:
+                async with self.http_client.get(next_url, headers=headers, params=params if pages_fetched == 0 else None) as resp:
+                    if resp.status != 200:
+                        logger.error("Spotify API error fetching playlist %s: HTTP %s", playlist_id, resp.status)
+                        break
+                    data = await resp.json()
+                    items = data.get("items", [])
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                        track = item.get("track")
+                        if not track or not isinstance(track, dict):
+                            continue
+                        title = track.get("name")
+                        if not title:
+                            continue
+
+                        artist_list = [a.get("name") for a in track.get("artists", []) if isinstance(a, dict) and a.get("name")]
+                        artists = ", ".join(artist_list)
+
+                        thumbnail = None
+                        album = track.get("album")
+                        if isinstance(album, dict) and album.get("images"):
+                            images = album.get("images")
+                            if isinstance(images, list) and len(images) > 0 and isinstance(images[0], dict):
+                                thumbnail = images[0].get("url")
+
+                        track_id = track.get("id")
+                        tracks.append({
+                            "title": title,
+                            "artist": artists,
+                            "duration": (track.get("duration_ms") or 0) / 1000,
+                            "url": f"https://open.spotify.com/track/{track_id}" if track_id else "",
+                            "thumbnail": thumbnail,
+                            "spotify_id": track_id
+                        })
+                    next_url = data.get("next")
+                    pages_fetched += 1
             return tracks
         except Exception:
             logger.exception("Error fetching Spotify playlist tracks")
             return []
 
     async def get_album_tracks(self, album_id: str) -> List[Dict[str, Any]]:
-        """Fetch metadata for tracks in a Spotify album (limited to 100 tracks)."""
+        """Fetch metadata for tracks in a Spotify album (up to 100 tracks)."""
         token = await self.get_token()
         if not token:
             return []
 
         headers = {"Authorization": f"Bearer {token}"}
 
-        # Fetch album details to get the thumbnail image first
         album_thumbnail = None
         try:
             album_url = f"https://api.spotify.com/v1/albums/{album_id}"
@@ -148,15 +164,14 @@ class SpotifyService:
                 if resp.status == 200:
                     album_data = await resp.json()
                     images = album_data.get("images", [])
-                    if images:
+                    if isinstance(images, list) and len(images) > 0 and isinstance(images[0], dict):
                         album_thumbnail = images[0].get("url")
         except Exception:
             logger.warning("Could not fetch album details for thumbnail", exc_info=True)
 
-        # Now fetch the tracks in the album
         tracks_url = f"https://api.spotify.com/v1/albums/{album_id}/tracks"
         params = {"limit": 100}
-        tracks = []
+        tracks: List[Dict[str, Any]] = []
 
         try:
             async with self.http_client.get(tracks_url, headers=headers, params=params) as resp:
@@ -166,14 +181,21 @@ class SpotifyService:
                 data = await resp.json()
                 items = data.get("items", [])
                 for track in items:
-                    artists = ", ".join([a.get("name") for a in track.get("artists", [])])
+                    if not isinstance(track, dict):
+                        continue
+                    title = track.get("name")
+                    if not title:
+                        continue
+                    artist_list = [a.get("name") for a in track.get("artists", []) if isinstance(a, dict) and a.get("name")]
+                    artists = ", ".join(artist_list)
+                    track_id = track.get("id")
                     tracks.append({
-                        "title": track.get("name"),
+                        "title": title,
                         "artist": artists,
-                        "duration": track.get("duration_ms", 0) / 1000,
-                        "url": f"https://open.spotify.com/track/{track.get('id')}" if track.get("id") else "",
+                        "duration": (track.get("duration_ms") or 0) / 1000,
+                        "url": f"https://open.spotify.com/track/{track_id}" if track_id else "",
                         "thumbnail": album_thumbnail,
-                        "spotify_id": track.get("id")
+                        "spotify_id": track_id
                     })
             return tracks
         except Exception:
@@ -182,7 +204,10 @@ class SpotifyService:
 
     async def parse_url(self, url: str) -> Optional[List[Dict[str, Any]]]:
         """Parse the Spotify URL and return metadata for any identified tracks."""
-        match = re.search(r"https?://open\.spotify\.com/(?P<type>track|playlist|album)/(?P<id>[a-zA-Z0-9]+)", url)
+        pattern = re.compile(
+            r"https?://open\.spotify\.com/(?:intl-[a-z]+/|user/[^/]+/)?(?P<type>track|playlist|album)/(?P<id>[a-zA-Z0-9]+)"
+        )
+        match = pattern.search(url)
         if not match:
             return None
 
